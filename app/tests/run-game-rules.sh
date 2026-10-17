@@ -1,0 +1,62 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+harness_dir="$(mktemp -d /private/tmp/tka-game-rules.XXXXXX)"
+mkdir -p "$harness_dir/Sources/GameRules" "$harness_dir/Tests/GameRulesTests"
+
+# Compile the application's actual rules, managers and API classes. Playgrounds
+# are excluded; the API's lazy static JSON is not accessed by these fixtures.
+cp "$repo_dir/app/Models/Models.swift" "$harness_dir/Sources/GameRules/Models.swift"
+cp "$repo_dir/app/Models/GameModels.swift" "$harness_dir/Sources/GameRules/GameModels.swift"
+for api in EpisodeAPI EvidenceDataAPI PersonDataAPI StoryData; do
+    awk '/^import Playgrounds/ { exit } { print }' \
+        "$repo_dir/app/API/$api.swift" > "$harness_dir/Sources/GameRules/$api.swift"
+done
+for manager in GameManager EpisodeManager PlayerManager ScreenManager; do
+    cp "$repo_dir/app/Manager/$manager.swift" "$harness_dir/Sources/GameRules/$manager.swift"
+done
+cp "$repo_dir/app/Logic/JsonLoader.swift" "$harness_dir/Sources/GameRules/JsonLoader.swift"
+awk '/^@Observable/ { exit } { print }' \
+    "$repo_dir/app/Manager/PeerManager.swift" > "$harness_dir/Sources/GameRules/GameMessage.swift"
+{
+    printf 'import simd\n\n'
+    awk '
+        /^nonisolated enum EvidenceSurfaceClassification/ { exit }
+        /^nonisolated enum EvidencePlaneOrientation/ { copying = 1 }
+        copying { print }
+    ' "$repo_dir/app/AR/EvidenceARComponents.swift"
+} > "$harness_dir/Sources/GameRules/EvidencePlaneOrientation.swift"
+cp "$repo_dir/tests/support/FakePeerManager.swift" "$harness_dir/Sources/GameRules/FakePeerManager.swift"
+cp "$repo_dir/tests/GameRulesTests.swift" "$repo_dir/tests/GameManagerTests.swift" \
+    "$repo_dir/tests/GameFixtures.swift" "$repo_dir/tests/EvidenceOrientationTests.swift" \
+    "$harness_dir/Tests/GameRulesTests/"
+
+cat > "$harness_dir/Package.swift" <<'PACKAGE'
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "GameRules",
+    platforms: [.macOS(.v14)],
+    targets: [
+        .target(name: "GameRules"),
+        .testTarget(name: "GameRulesTests", dependencies: ["GameRules"])
+    ]
+)
+PACKAGE
+
+printf 'Game rules harness: %s\n' "$harness_dir"
+CLANG_MODULE_CACHE_PATH="$harness_dir/ModuleCache" \
+SWIFTPM_MODULECACHE_OVERRIDE="$harness_dir/ModuleCache" \
+swift test \
+    --package-path "$harness_dir" \
+    --cache-path "$harness_dir/Cache" \
+    --config-path "$harness_dir/Config" \
+    --security-path "$harness_dir/Security" \
+    --scratch-path "$harness_dir/.build" \
+    --manifest-cache local \
+    --disable-keychain \
+    --disable-netrc \
+    --disable-sandbox \
+    "$@"
