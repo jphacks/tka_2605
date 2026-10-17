@@ -10,9 +10,26 @@
 		000000000000000000000120 /* app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = app.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		81D4BF66308315DA0012BAF9 /* Exceptions for "app" folder in "Compile Sources" phase from "app" target */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = 000000000000000120000000 /* Sources */;
+			membershipExceptions = (
+				Data/EpisodeData.json,
+				Data/PersonalEvidenceData.json,
+				Data/PersonData.json,
+				Data/PhysicalEvidenceData.json,
+				Data/StoryData.json,
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		000000000000000000000010 /* app */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				81D4BF66308315DA0012BAF9 /* Exceptions for "app" folder in "Compile Sources" phase from "app" target */,
+			);
 			path = app;
 			sourceTree = "<group>";
 		};
