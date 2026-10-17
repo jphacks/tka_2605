@@ -5,71 +5,47 @@
 //  Created by tknooa on 2026/10/17.
 //
 
-import ARKit
-
-
-struct Episode: Codable, Identifiable {
-    var id: Int
-    var name: String
-    var description: String
-    var previewResourceName: String
-    
-    var isActive: Bool
-}
-
-struct Evidence: Codable, Hashable, Identifiable {
-    var id: Int
-    var storyID: Int
-    var modelResourceName: String
-    var name: String
-    var description: String
-    var classfication: String
-    
-    var isCollected: Bool = false
-}
-
-struct Person: Codable, Identifiable {
-    var id: Int
-    var tag: String
-    var name: String
-    var imageNamae: String
-    var personalEvideceTestimony: [Int:String]
-    var physicalEvideceTestimony: [Int:String]
-}
-
-struct Story: Codable, Identifiable {
-    var id: Int
-    var tag: String
-    var personID: [Statement]
-    
-    struct Statement: Codable {
-        var id: UUID = UUID()
-        var personID: Int
-        var resourceName: String
-        var statement: String
-        
-        var isRead: Bool = false
-    }
-}
+import SwiftUI
 
 @Observable
 class EpisodeManager {
     private(set) var episode: Episode? = nil
-    private(set) var data: Data? = nil
-    private(set) var resources: [Evidence:UIImage] = [:]
-    
-    init(episode: Episode? = nil, data: Data? = nil) {
+    private(set) var data: GameData? = nil
+    private(set) var resources: [Evidence: UIImage] = [:]
+
+    init(episode: Episode? = nil, data: GameData? = nil) {
         self.episode = episode
         self.data = data
         self.resources = [:]
     }
-    
+
     func getAllEpisode() -> [Episode] {
         // apiより取得
-        return []
+        return EpisodeDataAPI.episodeData.map {
+            Episode(data: $0)
+        }
     }
-    
+
     func initFromEpisodeID(id: Int) {
         // apiより取得
+        guard let episodeData = EpisodeDataAPI.get(id: id) else { return }
+
+        self.data = GameData.init(
+            personalEvidences: episodeData.personalEvidences.map {
+                Evidence(data: EvidenceDataAPI.getPersonalEvidence(id: $0)!)
+            },
+            physicalEvidences:episodeData.personalEvidences.map {
+                Evidence(data: EvidenceDataAPI.getPhysicalEvidence(id: $0)!)
+            },
+            persons: episodeData.persons.map {
+                Person(data: PersonalDataAPI.get(id: $0)!)
+            },
+            stories: episodeData.stories.map {
+                Story(data: StoryDataAPI.get(id: $0)!)
+            },
+            keyPersonalEvidenceID: episodeData.keyPersonalEvidenceID,
+            keyPhysicalEvidenceID: episodeData.keyPhysicalEvidenceID,
+            keyPersonID: episodeData.keyPersonID
+        )
     }
 }
