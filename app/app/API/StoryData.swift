@@ -8,10 +8,10 @@
 struct StoryData: Codable, Hashable, Identifiable {
     var id: Int
     var tag: String
-    var turn: [StoryTurn]
+    var turn: [StatementData]
 }
 
-struct StoryTurn: Codable, Hashable {
+struct StatementData: Codable, Hashable {
     var personID: Int
     var resourceName: String
     var statement: String
