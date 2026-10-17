@@ -24,16 +24,23 @@ struct Player {
 
 @Observable
 class PlayerManager {
-    private(set) var selfPlayer: Player?
-    private(set) var players: [Player]
+    static let shared = PlayerManager()
     
-    init(selfPlayer: Player? = nil) {
-        self.selfPlayer = selfPlayer
-        self.players = []
+    private(set) var selfPlayer: Player = .init(name: "名無し", isHost: false)
+    private(set) var players: [Player] = []
+    
+    private init() {}
+    
+    func setDisplayname(displayName: String) {
+        self.selfPlayer.displayName = displayName
     }
     
-    func initSelfPlayer(player: Player) {
-        self.selfPlayer = player
+    func setIsHost(isHost: Bool) {
+        self.selfPlayer.isHost = isHost
+    }
+    
+    func setName(name: String) {
+        self.selfPlayer.name = name
     }
     
     func appendPlayers(player: Player) {

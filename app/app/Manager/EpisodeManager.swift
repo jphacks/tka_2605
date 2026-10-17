@@ -9,6 +9,10 @@ import SwiftUI
 
 @Observable
 class EpisodeManager {
+    static let shared = EpisodeManager()
+    
+    private init() {}
+    
     private(set) var episode: Episode? = nil
     private(set) var data: GameData? = nil
     private(set) var resources: [Evidence: UIImage] = [:]

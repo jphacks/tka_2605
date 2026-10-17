@@ -2,9 +2,22 @@ import SwiftUI
 import Playgrounds
 
 struct ContentView: View {
+    @State var peer: PeerManager = .init()
+    @State var episode: EpisodeManager = .init()
+    @State var screen = ScreenManager.shared
+    
     var body: some View {
-        Text("Hello, world!")
-            .padding()
+        Group {
+            switch screen.mainScreenState {
+            case .Title:
+                TitleView()
+            case .Game:
+                TitleView()
+            }
+        }
+        .environment(peer)
+        .environment(episode)
+        
     }
 }
 
