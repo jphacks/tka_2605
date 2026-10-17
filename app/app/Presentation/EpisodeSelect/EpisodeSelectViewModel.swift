@@ -15,18 +15,37 @@ class EpisodeSelectViewModel {
     private var screen = ScreenManager.shared
     private var peer = PeerManager.shared
     
-    var episodeID: Int? = nil
+    private(set) var selectedEpisode: Episode?
+    private var episodeToPlayAfterDismissal: Episode?
     
     func getEpisodes() -> [Episode] {
         return episode.getAllEpisode()
     }
     
     func onClickEpisodeButton(episodeID: Int) {
-        self.episodeID = episodeID
-        
-        guard let episodeID = self.episodeID else { return }
-        
-        self.episode.initFromEpisodeID(id: episodeID)
+        guard let selected = getEpisodes().first(where: { $0.id == episodeID }),
+              selected.isActive else { return }
+        episodeToPlayAfterDismissal = nil
+        selectedEpisode = selected
+    }
+
+    func cancelEpisodeSelection() {
+        // SwiftUIが閉じた後に再度nilを書き戻しても、確定済みの選択は取り消さない。
+        guard selectedEpisode != nil else { return }
+        episodeToPlayAfterDismissal = nil
+        selectedEpisode = nil
+    }
+
+    func confirmEpisodeSelection() {
+        guard let selectedEpisode else { return }
+        episodeToPlayAfterDismissal = selectedEpisode
+        self.selectedEpisode = nil
+    }
+
+    func confirmationDidDismiss() {
+        guard let selected = episodeToPlayAfterDismissal else { return }
+        episodeToPlayAfterDismissal = nil
+        episode.initFromEpisodeID(id: selected.id)
         screen.titleStatePath.append(.Robbie)
     }
     
