@@ -1,0 +1,25 @@
+//
+//  PersonalEvidenceData.json
+//  app
+//
+//  Created by tknooa on 2026/10/17.
+//
+
+[
+    {
+    "ID": 0,
+    "storyID": 0,
+    "resourceName": "ThumbFP",
+    "name": "親指の指紋",
+    "description": "親指の指紋だ",
+    "classification": "Wall"
+    },
+    {
+    "ID": 1,
+    "storyID": 0,
+    "resourceName": "AnyFP",
+    "name": "指紋",
+    "description": "指紋だ",
+    "classification": "Wall"
+    },
+]
