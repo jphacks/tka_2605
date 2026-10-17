@@ -7,15 +7,16 @@
 
 [
     {
-    "ID": 0,
+    "id": 0,
     "storyID": 0,
     "resourceName": "ThumbFP",
     "name": "親指の指紋",
     "description": "親指の指紋だ",
     "classification": "Wall"
     },
+    
     {
-    "ID": 1,
+    "id": 1,
     "storyID": 0,
     "resourceName": "AnyFP",
     "name": "指紋",
