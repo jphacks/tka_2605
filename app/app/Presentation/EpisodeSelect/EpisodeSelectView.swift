@@ -21,14 +21,20 @@ struct EpisodeSelectView: View {
                             )
                         }
                     ) {
-                        Text(episode.name).font(.headline)
-                        Text(episode.description)
+                        VStack {
+                            Text(episode.name).font(.headline)
+                            Text(episode.description)
+                        }
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(.blue)
                     .padding(96)
+                    .disabled(!episode.isActive)
                 }
             }
+        }
+        .onAppear {
+            viewModel.connectClose()
         }
     }
 }

@@ -18,12 +18,17 @@ struct RobbieView: View {
             if let description = viewModel.getEpisodeDescription() {
                 Text(description)
             }
-            
+
             if let count = viewModel.getPlayerCount() {
-                Text(count + "/ 2")
+                HStack {
+                    Text("接続人数....")
+                    Text(count + " / 2")
+                }
             } else {
                 Text("???")
             }
+            
+            
 
             ForEach(viewModel.getPlayersName(), id: \.self) { name in
                 Text(name)
@@ -31,6 +36,14 @@ struct RobbieView: View {
                     .foregroundStyle(.blue)
                     .padding(96)
             }
+            if let isActive = viewModel.isActiveStartButton {
+                Button("推理開始", action: viewModel.onClickStartButton)
+                    .disabled(!isActive)
+                    .buttonStyle(.plain)
+            }
+        }
+        .onAppear {
+            viewModel.startConnection()
         }
     }
 }

@@ -37,7 +37,7 @@ struct TitleView: View {
                 case .EpisodeSelect:
                     EpisodeSelectView()
                 case .Robbie:
-                    EmptyView()
+                    RobbieView()
                 }
             }
         }

@@ -41,7 +41,13 @@ class RobbieViewModel {
     }
     
     func getPlayersName() -> [String] {
-        return peer.connectedPeers
+        
+        var playersName: [String] = peer.connectedPeers.compactMap { peerID in
+            player.serchByDisplayName(name: peerID)?.name
+        }
+    
+        playersName.append(player.selfPlayer.name)
+        return playersName
     }
     
     func startConnection() {
@@ -56,6 +62,8 @@ class RobbieViewModel {
     
     private func sync() {
         guard player.selfPlayer.isHost else { return }
+        
+        
     }
 }
 

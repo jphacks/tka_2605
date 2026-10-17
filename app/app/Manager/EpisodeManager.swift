@@ -33,6 +33,8 @@ class EpisodeManager {
     func initFromEpisodeID(id: Int) {
         // apiより取得
         guard let episodeData = EpisodeDataAPI.get(id: id) else { return }
+        
+        self.episode = Episode(data: episodeData)
 
         self.data = GameData.init(
             personalEvidences: episodeData.personalEvidences.map {

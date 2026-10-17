@@ -46,4 +46,8 @@ class PlayerManager {
     func appendPlayers(player: Player) {
         self.players.append(player)
     }
+    
+    func serchByDisplayName(name: String) -> Player?{
+        return self.players.first {$0.displayName == name}
+    }
 }
