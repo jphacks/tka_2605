@@ -34,7 +34,7 @@ final class PeerManager: NSObject {
     private var advertiser: MCNearbyServiceAdvertiser?
     private var browser: MCNearbyServiceBrowser?
 
-    override init() {
+    override private init() {
         super.init()
 
         session = MCSession(
@@ -44,6 +44,8 @@ final class PeerManager: NSObject {
         )
         session.delegate = self
     }
+    
+    static let shared = PeerManager()
 
     // MARK: - ホスト側
 
@@ -166,6 +168,7 @@ extension PeerManager: MCNearbyServiceBrowserDelegate {
         DispatchQueue.main.async {
             if !self.discoveredPeers.contains(peerID) {
                 self.discoveredPeers.append(peerID)
+                self.join(peerID)
             }
         }
     }

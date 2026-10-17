@@ -2,7 +2,7 @@ import SwiftUI
 import Playgrounds
 
 struct ContentView: View {
-    @State var peer: PeerManager = .init()
+    @State var peer: PeerManager = PeerManager.shared
     @State var episode: EpisodeManager = .init()
     @State var screen = ScreenManager.shared
     

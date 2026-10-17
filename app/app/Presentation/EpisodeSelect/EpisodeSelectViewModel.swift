@@ -22,5 +22,6 @@ class EpisodeSelectViewModel {
     
     func onClickEpisodeButton(episodeID: Int) {
         self.episodeID = episodeID
+        screen.titleStatePath.append(.Robbie)
     }
 }
