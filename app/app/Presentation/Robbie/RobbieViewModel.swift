@@ -18,7 +18,7 @@ class RobbieViewModel {
     
     var isActiveStartButton: Bool? {
         if player.selfPlayer.isHost {
-            return peer.connectedPeers.count >= 1 ? true : false
+            return GameManager.shared.isReady
         } else {
             return nil
         }
@@ -37,7 +37,7 @@ class RobbieViewModel {
     }
     
     func onClickStartButton() {
-        screen.setScreenState(.Game)
+        GameManager.shared.startGame()
     }
     
     func getPlayersName() -> [String] {

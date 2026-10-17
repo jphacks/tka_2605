@@ -3,7 +3,7 @@ import Playgrounds
 
 struct ContentView: View {
     @State var peer: PeerManager = PeerManager.shared
-    @State var episode: EpisodeManager = .init()
+    @State var episode = EpisodeManager.shared
     @State var screen = ScreenManager.shared
     
     var body: some View {
@@ -12,7 +12,7 @@ struct ContentView: View {
             case .Title:
                 TitleView()
             case .Game:
-                TitleView()
+                GameView()
             }
         }
         .environment(peer)

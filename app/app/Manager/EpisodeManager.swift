@@ -15,7 +15,7 @@ class EpisodeManager {
     
     private(set) var episode: Episode? = nil
     private(set) var data: GameData? = nil
-    private(set) var resources: [Evidence: UIImage] = [:]
+    private(set) var resources: [EvidenceKey: UIImage] = [:]
 
     init(episode: Episode? = nil, data: GameData? = nil) {
         self.episode = episode
@@ -38,6 +38,20 @@ class EpisodeManager {
         data = state.data
     }
 
+    func photo(for key: EvidenceKey) -> UIImage? {
+        resources[key]
+    }
+
+    func savePhoto(_ image: UIImage, for key: EvidenceKey) {
+        resources[key] = image
+    }
+
+    func clearGame() {
+        episode = nil
+        data = nil
+        resources.removeAll()
+    }
+
     func getAllEpisode() -> [Episode] {
         // apiより取得
         return EpisodeDataAPI.episodeData.map {
@@ -48,6 +62,7 @@ class EpisodeManager {
     func initFromEpisodeID(id: Int) {
         // apiより取得
         guard let episodeData = EpisodeDataAPI.get(id: id) else { return }
+        resources.removeAll()
         
         self.episode = Episode(data: episodeData)
 
