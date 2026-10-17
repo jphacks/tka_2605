@@ -8,7 +8,7 @@
 import ARKit
 
 
-struct Episode: Codable {
+struct Episode: Codable, Identifiable {
     var id: Int
     var name: String
     var description: String
@@ -17,7 +17,7 @@ struct Episode: Codable {
     var isActive: Bool
 }
 
-struct Evidence: Codable, Hashable {
+struct Evidence: Codable, Hashable, Identifiable {
     var id: Int
     var storyID: Int
     var modelResourceName: String
@@ -28,7 +28,7 @@ struct Evidence: Codable, Hashable {
     var isCollected: Bool = false
 }
 
-struct Person: Codable {
+struct Person: Codable, Identifiable {
     var id: Int
     var tag: String
     var name: String
@@ -37,7 +37,7 @@ struct Person: Codable {
     var physicalEvideceTestimony: [Int:String]
 }
 
-struct Story: Codable {
+struct Story: Codable, Identifiable {
     var id: Int
     var tag: String
     var personID: [Statement]
@@ -66,6 +66,7 @@ class EpisodeManager {
     
     func getAllEpisode() -> [Episode] {
         // apiより取得
+        return []
     }
     
     func initFromEpisodeID(id: Int) {
