@@ -9,7 +9,7 @@ import Playgrounds
 import SwiftUI
 import MultipeerConnectivity
 
-struct ContentView: View {
+struct PeerSampleView: View {
     @State private var peer = PeerManager()
     @State private var input = ""
 
@@ -85,7 +85,7 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    PeerSampleView()
 }
 
 #Playground {
