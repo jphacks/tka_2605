@@ -23,6 +23,21 @@ class EpisodeManager {
         self.resources = [:]
     }
 
+    // 初期化前は送信できる状態がないためnilを返す。
+    func makeGameState() -> GameState? {
+        guard let episode, let data else { return nil }
+        return GameState(episode: episode, data: data)
+    }
+
+    func applyGameState(_ state: GameState) {
+        // 別のエピソードやゲームの画像を引き継がない。
+        if episode?.id != state.episode.id || data?.id != state.data.id {
+            resources.removeAll()
+        }
+        episode = state.episode
+        data = state.data
+    }
+
     func getAllEpisode() -> [Episode] {
         // apiより取得
         return EpisodeDataAPI.episodeData.map {
@@ -40,7 +55,7 @@ class EpisodeManager {
             personalEvidences: episodeData.personalEvidences.map {
                 Evidence(data: EvidenceDataAPI.getPersonalEvidence(id: $0)!)
             },
-            physicalEvidences:episodeData.personalEvidences.map {
+            physicalEvidences: episodeData.physicalEvidences.map {
                 Evidence(data: EvidenceDataAPI.getPhysicalEvidence(id: $0)!)
             },
             persons: episodeData.persons.map {

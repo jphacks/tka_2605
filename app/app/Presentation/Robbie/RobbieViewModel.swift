@@ -56,19 +56,5 @@ class RobbieViewModel {
         } else {
             peer.startSearching()
         }
-        
-        sync()
-    }
-    
-    private func sync() {
-        guard player.selfPlayer.isHost else { return }
-        
-        
     }
 }
-
-/*
- 
- ホストー＞ゲストにエピソード情報を送信
- 
- */

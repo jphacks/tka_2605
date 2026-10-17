@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct Episode: Codable, Identifiable {
+struct Episode: Codable, Hashable, Identifiable {
     var id: Int
     var name: String
     var description: String
@@ -24,7 +24,7 @@ struct Episode: Codable, Identifiable {
     }
 }
 
-struct GameData: Codable, Identifiable {
+struct GameData: Codable, Hashable, Identifiable {
     var id: UUID
     var personalEvidences: [Evidence]
     var physicalEvidences: [Evidence]
@@ -75,7 +75,7 @@ struct Evidence: Codable, Hashable, Identifiable {
     }
 }
 
-struct Person: Codable, Identifiable {
+struct Person: Codable, Hashable, Identifiable {
     var id: Int
     var name: String
     var resourceName: String
@@ -91,12 +91,12 @@ struct Person: Codable, Identifiable {
     }
 }
 
-struct Story: Codable, Identifiable {
+struct Story: Codable, Hashable, Identifiable {
     var id: Int
     var tag: String
     var turn: [Statement]
 
-    struct Statement: Codable {
+    struct Statement: Codable, Hashable {
         var id: UUID
         var personID: Int
         var resourceName: String
