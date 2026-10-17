@@ -1,15 +1,41 @@
 [
     {
         "id": 0,
-        "name": "タイトル",
-        "description": "あらすじ",
+        "name": "黒薔薇館殺人事件",
+        "description": "黒薔薇館の主、ラヴクラフト卿の死体が発見された。現場を調査し、真実を究明せよ！！",
         "stories": [0, 1, 2],
-        "personalEvidences": [0, 1],
-        "physicalEvidences": [0, 1],
-        "persons": [0, 1],
+        "personalEvidences": [0, 1, 2, 3, 4, 5],
+        "physicalEvidences": [0, 1, 2, 3, 4, 5],
+        "persons": [0, 1, 2, 3],
         "keyPersonalEvidenceID": 0,
         "keyPhysicalEvidenceID": 0,
-        "keyPersonID": 0,
-        "previewResourceName": "PreviewImage"
+        "keyPersonID": 3,
+        "previewResourceName": ""
+    },
+    {
+        "id": 1,
+        "name": "恐怖！jphackunの中の人！！",
+        "description": "黒薔薇館の主、ラヴクラフト卿の死体が発見された。現場を調査し、真実を究明せよ！！",
+        "stories": [],
+        "personalEvidences": [],
+        "physicalEvidences": [],
+        "persons": [],
+        "keyPersonalEvidenceID": null,
+        "keyPhysicalEvidenceID": null,
+        "keyPersonID": null,
+        "previewResourceName": ""
+    },
+    {
+        "id": 2,
+        "name": "超巨大ハムスターの謀反",
+        "description": "体長10メートルの愛玩動物。潰された密室の真実を探れ！！",
+        "stories": [],
+        "personalEvidences": [],
+        "physicalEvidences": [],
+        "persons": [],
+        "keyPersonalEvidenceID": null,
+        "keyPhysicalEvidenceID": null,
+        "keyPersonID": null,
+        "previewResourceName": ""
     }
 ]
