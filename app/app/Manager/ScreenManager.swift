@@ -8,16 +8,29 @@
 import SwiftUI
 
 
-enum ScreenState {
+enum MainScreenState {
     case Title
     case Game
 }
 
+enum TitleState: Hashable {
+    case Title
+    case ConnectionSelect
+    case EpisodeSelect
+    case Robbie
+}
+
+
 @Observable
 class ScreenManager {
-    private(set) var screenState: ScreenState = .Title
+    static let shared = ScreenManager()
     
-    func setScreenState(_ s: ScreenState) {
-        self.screenState = s
+    private init() {}
+    
+    private(set) var mainScreenState: MainScreenState = .Title
+    var titleStatePath: [TitleState] = [.Title]
+    
+    func setScreenState(_ s: MainScreenState) {
+        self.mainScreenState = s
     }
 }

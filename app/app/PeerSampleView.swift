@@ -10,7 +10,7 @@ import SwiftUI
 import MultipeerConnectivity
 
 struct PeerSampleView: View {
-    @State private var peer = PeerManager()
+    @State private var peer = PeerManager.shared
     @State private var input = ""
 
     var body: some View {
