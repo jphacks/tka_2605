@@ -1,0 +1,15 @@
+[
+    {
+        "id": 0,
+        "name": "タイトル",
+        "description": "あらすじ",
+        "stories": [0, 1, 2],
+        "personalEvidences": [0, 1],
+        "physicalEvidences": [0, 1],
+        "persons": [0, 1],
+        "keyPersonalEvidenceID": 0,
+        "keyPhysicalEvidenceID": 0,
+        "keyPersonID": 0,
+        "previewResourceName": "PreviewImage"
+    }
+]

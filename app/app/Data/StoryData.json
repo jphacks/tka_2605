@@ -1,0 +1,29 @@
+[
+    {
+        "id": 0,
+        "tag": "first_contact_phase",
+        "turn": [
+            {
+                "personID": 0,
+                "resourceName": "story_01",
+                "statement": "物語が始まる。"
+            },
+            {
+                "personID": 1,
+                "resourceName": "story_02",
+                "statement": "登場人物が話し始める。"
+            }
+        ]
+    },
+    {
+        "id": 1,
+        "tag": "investigation_phase",
+        "turn": [
+            {
+                "personID": 0,
+                "resourceName": "story_03",
+                "statement": "調査を開始する。"
+            }
+        ]
+    }
+]

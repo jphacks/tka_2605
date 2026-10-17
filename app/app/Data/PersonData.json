@@ -1,0 +1,13 @@
+[
+    {
+    "id": 0,
+    "name": "親指の指紋",
+    "resourceName": "ThumbFP",
+    "personalEvidenceTestimony": {
+        "0":"abc"
+    },
+    "physicalEvidenceTestimony": {
+        "0":"abc"
+    }
+    }
+]
