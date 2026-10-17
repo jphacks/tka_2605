@@ -44,7 +44,16 @@ class PlayerManager {
     }
     
     func appendPlayers(player: Player) {
-        self.players.append(player)
+        if let index = players.firstIndex(where: { $0.displayName == player.displayName }) {
+            players[index].name = player.name
+            players[index].isHost = player.isHost
+        } else {
+            players.append(player)
+        }
+    }
+
+    func clearOtherPlayers() {
+        players.removeAll()
     }
     
     func serchByDisplayName(name: String) -> Player?{
