@@ -13,6 +13,7 @@ for api in EpisodeAPI EvidenceDataAPI PersonDataAPI StoryData; do
     awk '/^import Playgrounds/ { exit } { print }' \
         "$repo_dir/app/API/$api.swift" > "$harness_dir/Sources/GameRules/$api.swift"
 done
+cp "$repo_dir/app/API/EpisodeDataResolver.swift" "$harness_dir/Sources/GameRules/EpisodeDataResolver.swift"
 for manager in GameManager EpisodeManager PlayerManager ScreenManager; do
     cp "$repo_dir/app/Manager/$manager.swift" "$harness_dir/Sources/GameRules/$manager.swift"
 done
@@ -30,7 +31,10 @@ awk '/^@Observable/ { exit } { print }' \
 cp "$repo_dir/tests/support/FakePeerManager.swift" "$harness_dir/Sources/GameRules/FakePeerManager.swift"
 cp "$repo_dir/tests/GameRulesTests.swift" "$repo_dir/tests/GameManagerTests.swift" \
     "$repo_dir/tests/GameFixtures.swift" "$repo_dir/tests/EvidenceOrientationTests.swift" \
+    "$repo_dir/tests/EpisodeDataTests.swift" \
     "$harness_dir/Tests/GameRulesTests/"
+mkdir -p "$harness_dir/Tests/GameRulesTests/Resources"
+cp "$repo_dir"/app/Data/*.json "$harness_dir/Tests/GameRulesTests/Resources/"
 
 cat > "$harness_dir/Package.swift" <<'PACKAGE'
 // swift-tools-version: 5.9
@@ -41,7 +45,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     targets: [
         .target(name: "GameRules"),
-        .testTarget(name: "GameRulesTests", dependencies: ["GameRules"])
+        .testTarget(name: "GameRulesTests", dependencies: ["GameRules"], resources: [.copy("Resources")])
     ]
 )
 PACKAGE

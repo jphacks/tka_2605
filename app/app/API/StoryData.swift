@@ -9,6 +9,23 @@ struct StoryData: Codable, Hashable, Identifiable {
     var id: Int
     var tag: String
     var turn: [StatementData]
+    var personalEvidences: [Int] = []
+    var physicalEvidences: [Int] = []
+}
+
+extension StoryData {
+    private enum CodingKeys: String, CodingKey {
+        case id, tag, turn, personalEvidences, physicalEvidences
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        tag = try container.decode(String.self, forKey: .tag)
+        turn = try container.decode([StatementData].self, forKey: .turn)
+        personalEvidences = try container.decodeIfPresent([Int].self, forKey: .personalEvidences) ?? []
+        physicalEvidences = try container.decodeIfPresent([Int].self, forKey: .physicalEvidences) ?? []
+    }
 }
 
 struct StatementData: Codable, Hashable {

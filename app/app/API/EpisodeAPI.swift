@@ -12,8 +12,9 @@ struct EpisodeData: Codable, Hashable, Identifiable {
     var description: String
     var isActive: Bool
     var stories: [Int]
-    var personalEvidences: [Int]
-    var physicalEvidences: [Int]
+    // 旧形式との互換用。新形式の証拠IDは各Storyから取得する。
+    var personalEvidences: [Int]?
+    var physicalEvidences: [Int]?
     var persons: [Int]
     var keyPersonalEvidenceID: Int?
     var keyPhysicalEvidenceID: Int?

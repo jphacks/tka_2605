@@ -11,17 +11,11 @@ nonisolated struct EvidenceComponent: Component {
     var isCollected: Bool
 }
 
-/// The placeholder's body is a box, so its nearest surface can be measured exactly.
-/// Asset replacement belongs here and in EvidenceModelFactory. A replacement must also
-/// provide its actual capture geometry; a label's bounds must never stand in for it.
+/// Bounds control placement; the rendered mesh controls picking and surface distance.
 nonisolated struct EvidenceModelConfiguration {
     var size: SIMD3<Float> = SIMD3(0.10, 0.10, 0.006)
     var orientation: simd_quatf = simd_quatf(angle: 0, axis: SIMD3(0, 0, 1))
-
-    static func configuration(for evidence: Evidence) -> Self {
-        // Configure individual evidence assets, their size, and orientation here.
-        Self()
-    }
+    var captureMesh = EvidenceCaptureMesh.box(size: SIMD3(0.10, 0.10, 0.006))
 }
 
 /// Keep the label upright independently of ARKit's in-plane anchor axes. Flipping
@@ -117,13 +111,31 @@ nonisolated struct EvidenceAROutputComponent: Component {
 }
 
 @MainActor
-enum EvidenceModelFactory {
+final class EvidenceModelFactory {
     static let visualName = "evidence-visual"
     static let collectedName = "collected-indicator"
-    static let collisionGroup = CollisionGroup(rawValue: 1 << 8)
+    private let assetLoader = EvidenceAssetLoader()
 
-    static func make(evidence: Evidence, key: EvidenceKey) -> Entity {
-        let configuration = EvidenceModelConfiguration.configuration(for: evidence)
+    func make(evidence: Evidence, key: EvidenceKey) async throws -> Entity {
+        var configuration = EvidenceModelConfiguration()
+        let visual = Entity()
+        visual.name = Self.visualName
+        if evidence.modelResourceName.isEmpty {
+            let body = ModelEntity(
+                mesh: .generateBox(size: configuration.size),
+                materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.94, blue: 0.78, alpha: 1))]
+            )
+            visual.addChild(body)
+            if let label = Self.makeLabel(evidence.name, size: configuration.size) {
+                visual.addChild(label)
+            }
+        } else {
+            let asset = try await assetLoader.load(resourceName: evidence.modelResourceName)
+            configuration.size = asset.size
+            configuration.captureMesh = asset.captureMesh
+            visual.addChild(asset.entity)
+        }
+        visual.orientation = configuration.orientation
         let root = Entity()
         root.name = "evidence-\(key.kind)-\(key.id)"
         root.components.set(EvidenceComponent(
@@ -135,29 +147,11 @@ enum EvidenceModelFactory {
         ))
         root.components.set(EvidencePlacementComponent())
 
-        let visual = Entity()
-        visual.name = visualName
-        visual.orientation = configuration.orientation
-        let body = ModelEntity(
-            mesh: .generateBox(size: configuration.size),
-            materials: [UnlitMaterial(color: UIColor(red: 1, green: 0.94, blue: 0.78, alpha: 1))]
-        )
-        body.components.set(CollisionComponent(
-            shapes: [.generateBox(size: configuration.size)],
-            filter: CollisionFilter(group: collisionGroup, mask: .all)
-        ))
-        visual.addChild(body)
-
-        // Render Japanese names as a texture so the system font can supply all glyphs.
-        if let label = makeLabel(evidence.name, size: configuration.size) {
-            visual.addChild(label)
-        }
-
         let collected = ModelEntity(
             mesh: .generateBox(size: SIMD3(0.018, 0.008, 0.002)),
             materials: [UnlitMaterial(color: .systemGreen)]
         )
-        collected.name = collectedName
+        collected.name = Self.collectedName
         collected.position = SIMD3(0, -configuration.size.y * 0.38, configuration.size.z / 2 + 0.001)
         collected.isEnabled = evidence.isCollected
         visual.addChild(collected)

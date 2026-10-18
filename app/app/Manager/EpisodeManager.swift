@@ -16,6 +16,7 @@ class EpisodeManager {
     private(set) var episode: Episode? = nil
     private(set) var data: GameData? = nil
     private(set) var resources: [EvidenceKey: UIImage] = [:]
+    private(set) var loadError: String?
 
     init(episode: Episode? = nil, data: GameData? = nil) {
         self.episode = episode
@@ -50,6 +51,7 @@ class EpisodeManager {
         episode = nil
         data = nil
         resources.removeAll()
+        loadError = nil
     }
 
     func getAllEpisode() -> [Episode] {
@@ -59,29 +61,29 @@ class EpisodeManager {
         }
     }
 
-    func initFromEpisodeID(id: Int) {
-        // apiより取得
-        guard let episodeData = EpisodeDataAPI.get(id: id) else { return }
-        resources.removeAll()
-        
-        self.episode = Episode(data: episodeData)
-
-        self.data = GameData.init(
-            personalEvidences: episodeData.personalEvidences.map {
-                Evidence(data: EvidenceDataAPI.getPersonalEvidence(id: $0)!)
-            },
-            physicalEvidences: episodeData.physicalEvidences.map {
-                Evidence(data: EvidenceDataAPI.getPhysicalEvidence(id: $0)!)
-            },
-            persons: episodeData.persons.map {
-                Person(data: PersonalDataAPI.get(id: $0)!)
-            },
-            stories: episodeData.stories.map {
-                Story(data: StoryDataAPI.get(id: $0)!)
-            },
-            keyPersonalEvidenceID: episodeData.keyPersonalEvidenceID,
-            keyPhysicalEvidenceID: episodeData.keyPhysicalEvidenceID,
-            keyPersonID: episodeData.keyPersonID
-        )
+    @discardableResult
+    func initFromEpisodeID(id: Int) -> Bool {
+        guard let episodeData = EpisodeDataAPI.get(id: id) else {
+            loadError = "エピソード（ID: \(id)）が見つかりません。"
+            return false
+        }
+        do {
+            let resolved = try EpisodeDataResolver.resolve(
+                episodeData,
+                stories: StoryDataAPI.storyData,
+                personalEvidences: EvidenceDataAPI.personalData,
+                physicalEvidences: EvidenceDataAPI.physicalData,
+                persons: PersonalDataAPI.allPersons
+            )
+            // 参照の検証がすべて成功してから、既存のゲーム・写真を置き換える。
+            episode = Episode(data: episodeData)
+            data = resolved
+            resources.removeAll()
+            loadError = nil
+            return true
+        } catch {
+            loadError = error.localizedDescription
+            return false
+        }
     }
 }

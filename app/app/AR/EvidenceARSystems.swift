@@ -118,16 +118,12 @@ nonisolated final class EvidenceSelectionSystem: System {
             output.selectedKey = nil
             output.selectedName = nil
             if input.interactionEnabled, input.photographing, input.trackingNormal {
-                let hits = context.scene.raycast(
-                    origin: tap.origin,
-                    direction: tap.direction,
-                    length: 100,
-                    query: .nearest,
-                    mask: EvidenceModelFactory.collisionGroup,
-                    relativeTo: nil
-                )
-                if let hit = hits.first,
-                   let target = EvidenceARGeometry.evidenceAncestor(of: hit.entity),
+                let hits = evidences.compactMap { entity -> (Entity, Float)? in
+                    guard let distance = EvidenceARGeometry.hitDistance(entity, origin: tap.origin, direction: tap.direction)
+                    else { return nil }
+                    return (entity, distance)
+                }
+                if let (target, _) = hits.min(by: { $0.1 < $1.1 }),
                    EvidenceARGeometry.canCapture(target, input: input) {
                     let evidence = target.components[EvidenceComponent.self]
                     output.selectedKey = evidence?.key
@@ -177,13 +173,12 @@ nonisolated final class EvidenceCaptureSystem: System {
 
 @MainActor
 enum EvidenceARGeometry {
-    static func evidenceAncestor(of entity: Entity) -> Entity? {
-        var current: Entity? = entity
-        while let candidate = current {
-            if candidate.components[EvidenceComponent.self] != nil { return candidate }
-            current = candidate.parent
-        }
-        return nil
+    static func hitDistance(_ entity: Entity, origin: SIMD3<Float>, direction: SIMD3<Float>) -> Float? {
+        guard entity.components[EvidencePlacementComponent.self]?.isValid == true,
+              let model = entity.components[EvidenceComponent.self]?.model else { return nil }
+        let localOrigin = model.orientation.inverse.act(entity.convert(position: origin, from: nil))
+        let localDirection = model.orientation.inverse.act(entity.convert(direction: direction, from: nil))
+        return model.captureMesh.hitDistance(origin: localOrigin, direction: localDirection)
     }
 
     static func canCapture(_ entity: Entity, input: EvidenceARInputComponent) -> Bool {
@@ -197,16 +192,7 @@ enum EvidenceARGeometry {
         let camera = input.cameraTransform.columns.3
         let pointInRoot = entity.convert(position: SIMD3(camera.x, camera.y, camera.z), from: nil)
         let pointInModel = evidence.model.orientation.inverse.act(pointInRoot)
-        let halfSize = evidence.model.size / 2
-        let delta = abs(pointInModel) - halfSize
-        let outside = simd_max(delta, SIMD3<Float>.zero)
-        let distance: Float
-        if delta.x > 0 || delta.y > 0 || delta.z > 0 {
-            distance = simd_length(outside)
-        } else {
-            // Distance to the actual nearest face even if the camera is inside the box.
-            distance = min(-delta.x, min(-delta.y, -delta.z))
-        }
+        let distance = evidence.model.captureMesh.distance(to: pointInModel)
         guard distance <= 0.30 else { return false }
 
         // Use the very same viewport projection as the 1:1 ARView that is snapshotted.

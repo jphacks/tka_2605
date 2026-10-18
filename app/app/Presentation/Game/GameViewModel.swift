@@ -143,7 +143,7 @@ final class GameViewModel {
         if let state = game.state {
             arRuntime.configure(
                 gameID: state.data.id,
-                evidences: game.myEvidences,
+                evidences: game.currentInvestigationEvidences,
                 kind: game.myKind
             )
             if currentAttempt != state.ending.attempt {

@@ -25,6 +25,8 @@ final class GameManager {
             : "接続が切れました。同じ相手との再接続を待っています"
     }
     var myEvidences: [Evidence] { state?.evidences(for: myKind) ?? [] }
+    var currentStory: Story? { state?.currentStory }
+    var currentInvestigationEvidences: [Evidence] { state?.currentInvestigationEvidences(for: myKind) ?? [] }
     var myCollectedCount: Int { myEvidences.filter(\.isCollected).count }
     var myTotalCount: Int { myEvidences.count }
     var totalCollectedCount: Int { state?.totalCollectedCount ?? 0 }
@@ -68,7 +70,7 @@ final class GameManager {
 
     func recordPhoto(_ image: UIImage, for key: EvidenceKey) {
         guard isReady, let state, state.phase == .investigation,
-              key.kind == myKind, state.evidence(for: key) != nil else { return }
+              key.kind == myKind, state.isEvidenceAvailableInCurrentInvestigation(key) else { return }
         EpisodeManager.shared.savePhoto(image, for: key)
         lastError = nil
         guard state.evidence(for: key)?.isCollected != true else { return }

@@ -45,7 +45,7 @@ class EpisodeSelectViewModel {
     func confirmationDidDismiss() {
         guard let selected = episodeToPlayAfterDismissal else { return }
         episodeToPlayAfterDismissal = nil
-        episode.initFromEpisodeID(id: selected.id)
+        guard episode.initFromEpisodeID(id: selected.id) else { return }
         screen.titleStatePath.append(.Robbie)
     }
     

@@ -18,6 +18,7 @@ class PersonalDataAPI {
     private init() {}
     
     static private(set) var data: [PersonData] = jsonLoad("PersonData.json")
+    static var allPersons: [PersonData] { data }
     
     static func get(id: Int) -> PersonData? {
         return data.filter({$0.id == id}).first

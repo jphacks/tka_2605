@@ -29,6 +29,11 @@
 			path = app;
 			sourceTree = "<group>";
 		};
+		814CCAB63084629300DB1A40 /* Sources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Sources;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +50,7 @@
 			children = (
 				000000000000000000000010 /* app */,
 				000000000000000000000020 /* Products */,
+				814CCAB63084629300DB1A40 /* Sources */,
 			);
 			sourceTree = "<group>";
 		};
@@ -71,6 +77,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				000000000000000000000010 /* app */,
+				814CCAB63084629300DB1A40 /* Sources */,
 			);
 			name = app;
 			productName = MyApp;

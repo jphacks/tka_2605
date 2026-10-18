@@ -43,11 +43,34 @@ struct GameState: Codable, Hashable {
     var phase: GamePhase?
     var revision: Int = 0
     var ending = EndingState()
+    var investigationIndex: Int = 0
 
     var gameID: UUID { data.id }
     var totalEvidenceCount: Int { data.personalEvidences.count + data.physicalEvidences.count }
     var totalCollectedCount: Int {
         (data.personalEvidences + data.physicalEvidences).filter(\.isCollected).count
+    }
+
+    var investigationStories: [Story] {
+        let stories = data.stories.filter { $0.kind == .investigation }
+        // Storyに証拠指定のない旧形式は、従来どおり全証拠を1回の調査で扱う。
+        return stories.contains(where: \.hasEvidenceAssignments) ? stories : []
+    }
+
+    var currentInvestigationStory: Story? {
+        let stories = investigationStories
+        guard stories.indices.contains(investigationIndex) else { return nil }
+        return stories[investigationIndex]
+    }
+
+    var currentStory: Story? {
+        switch phase {
+        case .opening: data.stories.first { $0.kind == .firstContact }
+        case .investigation: currentInvestigationStory
+        case .ending: data.stories.first { $0.kind == .truthUncovering }
+        case .cleared: data.stories.first { $0.kind == .result }
+        case .none: nil
+        }
     }
 
     func evidences(for kind: EvidenceKind) -> [Evidence] {
@@ -56,6 +79,19 @@ struct GameState: Codable, Hashable {
 
     func evidence(for key: EvidenceKey) -> Evidence? {
         evidences(for: key.kind).first { $0.id == key.id }
+    }
+
+    func currentInvestigationEvidences(for kind: EvidenceKind) -> [Evidence] {
+        guard !investigationStories.isEmpty else { return evidences(for: kind) }
+        guard let story = currentInvestigationStory else { return [] }
+        var seen: Set<Int> = []
+        return story.evidenceIDs(for: kind).filter { seen.insert($0).inserted }.compactMap { id in
+            evidence(for: EvidenceKey(kind: kind, id: id))
+        }
+    }
+
+    func isEvidenceAvailableInCurrentInvestigation(_ key: EvidenceKey) -> Bool {
+        currentInvestigationEvidences(for: key.kind).contains { $0.id == key.id }
     }
 
     @discardableResult
@@ -68,6 +104,13 @@ struct GameState: Codable, Hashable {
               data.personalEvidences.contains(where: { $0.id == personalID }),
               data.physicalEvidences.contains(where: { $0.id == physicalID }),
               data.persons.contains(where: { $0.id == personID }) else { return false }
+        if !investigationStories.isEmpty {
+            for kind in EvidenceKind.allCases {
+                let assigned = Set(investigationStories.flatMap { $0.evidenceIDs(for: kind) })
+                guard assigned == Set(evidences(for: kind).map(\.id)) else { return false }
+            }
+        }
+        investigationIndex = 0
         phase = .opening
         revision += 1
         return true
@@ -80,9 +123,11 @@ struct GameState: Codable, Hashable {
         case .beginInvestigation:
             guard actor == .personal, phase == .opening else { return false }
             phase = .investigation
+            advanceInvestigationIfCompleted()
 
         case let .collectEvidence(key):
             guard phase == .investigation, key.kind == actor,
+                  isEvidenceAvailableInCurrentInvestigation(key),
                   let evidence = evidence(for: key), !evidence.isCollected else { return false }
             if key.kind == .personal {
                 guard let index = data.personalEvidences.firstIndex(where: { $0.id == key.id }) else { return false }
@@ -91,9 +136,7 @@ struct GameState: Codable, Hashable {
                 guard let index = data.physicalEvidences.firstIndex(where: { $0.id == key.id }) else { return false }
                 data.physicalEvidences[index].isCollected = true
             }
-            if totalCollectedCount == totalEvidenceCount {
-                phase = .ending
-            }
+            advanceInvestigationIfCompleted()
 
         case let .selectPerson(id, attempt):
             guard phase == .ending, actor == .personal, attempt == ending.attempt,
@@ -124,5 +167,26 @@ struct GameState: Codable, Hashable {
         }
         revision += 1
         return true
+    }
+
+    private mutating func advanceInvestigationIfCompleted() {
+        guard !investigationStories.isEmpty else {
+            if totalCollectedCount == totalEvidenceCount { phase = .ending }
+            return
+        }
+        while let story = currentInvestigationStory {
+            let completed = EvidenceKind.allCases.allSatisfy { kind in
+                story.evidenceIDs(for: kind).allSatisfy { id in
+                    evidence(for: EvidenceKey(kind: kind, id: id))?.isCollected == true
+                }
+            }
+            guard completed else { return }
+            if investigationIndex + 1 < investigationStories.count {
+                investigationIndex += 1
+            } else {
+                phase = .ending
+                return
+            }
+        }
     }
 }

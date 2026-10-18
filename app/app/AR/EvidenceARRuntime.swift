@@ -2,6 +2,7 @@ import ARKit
 import AVFoundation
 import Combine
 import Observation
+import OSLog
 import RealityKit
 import SwiftUI
 
@@ -22,6 +23,10 @@ final class EvidenceARRuntime: NSObject {
     @ObservationIgnored private let inputEntity = Entity()
     @ObservationIgnored private var surfaceEntities: [UUID: Entity] = [:]
     @ObservationIgnored private var evidenceEntities: [EvidenceKey: Entity] = [:]
+    @ObservationIgnored private let modelFactory = EvidenceModelFactory()
+    @ObservationIgnored private var requestedEvidences: [EvidenceKey: Evidence] = [:]
+    @ObservationIgnored private var modelLoadTasks: [EvidenceKey: Task<Void, Never>] = [:]
+    @ObservationIgnored private var modelLoadErrors: [EvidenceKey: String] = [:]
     @ObservationIgnored private var sceneSubscription: (any Cancellable)?
     @ObservationIgnored private var gameID: UUID?
     @ObservationIgnored private var evidenceKind: EvidenceKind?
@@ -38,6 +43,7 @@ final class EvidenceARRuntime: NSObject {
     @ObservationIgnored private var captureError: String?
 
     private static var systemsRegistered = false
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "EvidenceAR", category: "Models")
 
     override init() {
         Self.registerSystems()
@@ -57,9 +63,14 @@ final class EvidenceARRuntime: NSObject {
     }
 
     func configure(gameID: UUID, evidences: [Evidence], kind: EvidenceKind) {
+        let previousKeys = Set(requestedEvidences.keys)
+        requestedEvidences = Dictionary(uniqueKeysWithValues: evidences.map {
+            (EvidenceKey(kind: kind, id: $0.id), $0)
+        })
         if self.gameID != gameID || evidenceKind != kind {
             hasCameraFeed = false
             generation = UUID()
+            cancelModelLoads()
             invalidateCapture()
             for entity in evidenceEntities.values { entity.removeFromParent() }
             for entity in surfaceEntities.values { entity.removeFromParent() }
@@ -74,16 +85,38 @@ final class EvidenceARRuntime: NSObject {
             captureError = nil
             for evidence in evidences {
                 let key = EvidenceKey(kind: kind, id: evidence.id)
-                let entity = EvidenceModelFactory.make(evidence: evidence, key: key)
-                evidenceEntities[key] = entity
-                sceneAnchor.addChild(entity)
+                loadModel(evidence: evidence, key: key)
             }
             placedCount = 0
             selectedEvidenceName = nil
             canCapture = false
             if attached { startSessionIfPossible() }
         } else {
-            // Snapshots change collection flags without resetting local anchors or photos.
+            // 調査が進んだら対象Entityだけを差し替え、AR空間と認識面は維持する。
+            let requestedKeys = Set(evidences.map { EvidenceKey(kind: kind, id: $0.id) })
+            if requestedKeys != previousKeys {
+                generation = UUID()
+                cancelModelLoads()
+                invalidateCapture()
+                clearSelection()
+                for key in Array(evidenceEntities.keys) where !requestedKeys.contains(key) {
+                    evidenceEntities.removeValue(forKey: key)?.removeFromParent()
+                }
+                for evidence in evidences {
+                    let key = EvidenceKey(kind: kind, id: evidence.id)
+                    guard evidenceEntities[key] == nil else { continue }
+                    loadModel(evidence: evidence, key: key)
+                }
+                modifyInput {
+                    $0.surfaceRevision &+= 1
+                    $0.processedSurfaceRevision = -1
+                    $0.placementElapsed = 1
+                }
+                placedCount = evidenceEntities.values.filter {
+                    $0.components[EvidencePlacementComponent.self]?.isValid == true
+                }.count
+            }
+            // 同じ調査の状態同期では配置を維持し、収集済み表示だけを更新する。
             for evidence in evidences {
                 let key = EvidenceKey(kind: kind, id: evidence.id)
                 guard let entity = evidenceEntities[key],
@@ -95,6 +128,46 @@ final class EvidenceARRuntime: NSObject {
             }
         }
         updateStatus()
+    }
+
+    private func cancelModelLoads() {
+        for task in modelLoadTasks.values { task.cancel() }
+        modelLoadTasks.removeAll()
+        modelLoadErrors.removeAll()
+    }
+
+    private func loadModel(evidence: Evidence, key: EvidenceKey) {
+        let loadGeneration = generation
+        let factory = modelFactory
+        modelLoadTasks[key] = Task { @MainActor [weak self] in
+            do {
+                let entity = try await factory.make(evidence: evidence, key: key)
+                try Task.checkCancellation()
+                guard let self, self.generation == loadGeneration,
+                      let current = self.requestedEvidences[key] else { return }
+                if var component = entity.components[EvidenceComponent.self] {
+                    component.isCollected = current.isCollected
+                    entity.components.set(component)
+                }
+                entity.findEntity(named: EvidenceModelFactory.collectedName)?.isEnabled = current.isCollected
+                self.evidenceEntities[key] = entity
+                self.sceneAnchor.addChild(entity)
+                self.modelLoadTasks.removeValue(forKey: key)
+                // A plane may have been recognized while this asset was loading.
+                self.modifyInput {
+                    $0.surfaceRevision &+= 1
+                    $0.processedSurfaceRevision = -1
+                    $0.placementElapsed = 1
+                }
+                self.updateStatus()
+            } catch {
+                guard let self, self.generation == loadGeneration, !Task.isCancelled else { return }
+                self.modelLoadTasks.removeValue(forKey: key)
+                Self.logger.error("Model loading failed: \(evidence.modelResourceName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                self.modelLoadErrors[key] = evidence.name
+                self.updateStatus()
+            }
+        }
     }
 
     func setInteractionEnabled(_ enabled: Bool) {
@@ -364,6 +437,14 @@ final class EvidenceARRuntime: NSObject {
         let input = inputEntity.components[EvidenceARInputComponent.self]
         guard input?.interactionEnabled == true else { statusMessage = "操作を一時停止しています"; return }
         if isCapturing { statusMessage = "撮影しています"; return }
+        if let error = modelLoadErrors.sorted(by: { $0.key.id < $1.key.id }).first?.value {
+            statusMessage = "「\(error)」のモデルを読み込めませんでした"
+            return
+        }
+        if !modelLoadTasks.isEmpty {
+            statusMessage = "証拠モデルを読み込んでいます"
+            return
+        }
         if input?.trackingNormal != true { statusMessage = "周囲をゆっくり映して空間認識を待ってください"; return }
         if evidenceEntities.values.contains(where: { $0.components[EvidenceComponent.self]?.requiredSurface == nil }) {
             statusMessage = "このエピソードには対応していない配置条件が含まれています"
