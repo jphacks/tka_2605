@@ -18,53 +18,81 @@
     {
         "id": 1,
         "tag": "investigation_phase",
+        "personalEvidences": [1, 5],
+        "physicalEvidences": [2, 5],
         "turn": [
             {
                 "personID": 0,
                 "resourceName": "story_03",
-                "statement": "調査を開始する。"
+                "statement": "調査を開始する。現場となった卿の私室。"
             }
         ]
     },
     {
         "id": 2,
-        "tag": "truth_uncovering_phase",
+        "tag": "investigation_phase",
+        "personalEvidences": [3, 4],
+        "physicalEvidences": [0, 4],
         "turn": [
             {
-                "personID": 1,
-                "resourceName": "story_04a",
-                "statement": "エレノアが指名され、自分ではないと抗弁する。"
-            },
-            {
-                "personID": 2,
-                "resourceName": "story_04b",
-                "statement": "グレイが指名され、自分ではないと抗弁する。"
-            },
-            {
-                "personID": 3,
-                "resourceName": "story_04c",
-                "statement": "ジェームズが指名され、自分ではないと抗弁する。"
+                "personID": 0,
+                "resourceName": "story_04",
+                "statement": "調査が進展する。館の資料室。"
             }
         ]
     },
     {
         "id": 3,
+        "personalEvidences": [0, 2],
+        "physicalEvidences": [1, 3],
+        "tag": "investigation_phase",
+        "turn": [
+            {
+                "personID": 0,
+                "resourceName": "story_05",
+                "statement": "さらに調査が進展する。卿の書斎。"
+            }
+        ]
+    },
+    {
+        "id": 4,
+        "tag": "truth_uncovering_phase",
+        "turn": [
+            {
+                "personID": 1,
+                "resourceName": "story_06a",
+                "statement": "容疑者Aが指名され、自分ではないと抗弁する。"
+            },
+            {
+                "personID": 2,
+                "resourceName": "story_06b",
+                "statement": "容疑者Bが指名され、自分ではないと抗弁する。"
+            },
+            {
+                "personID": 3,
+                "resourceName": "story_06c",
+                "statement": "容疑者Cが指名され、自分ではないと抗弁する。"
+            }
+        ]
+    },
+    {
+        "id": 5,
         "tag": "result_phase",
         "turn": [
             {
                 "personID": 0,
                 "resourceName": "story_result_01",
-                "statement": "答え合わせ。"
+                "statement": "シナリオクリア！表示"
             },
             {
                 "personID": 0,
                 "resourceName": "story_result_02",
-                "statement": "答え合わせ。"
+                "statement": "シナリオのネタバレを提示_1"
             },
             {
                 "personID": 0,
                 "resourceName": "story_result_03",
-                "statement": "答え合わせ。"
+                "statement": "シナリオのネタバレを提示_2"
             }
         ]
     }
