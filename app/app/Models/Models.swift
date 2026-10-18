@@ -91,10 +91,26 @@ struct Person: Codable, Hashable, Identifiable {
     }
 }
 
+enum StoryTag: String, Codable, Hashable {
+    case firstContact = "first_contact_phase"
+    case investigation = "investigation_phase"
+    case truthUncovering = "truth_uncovering_phase"
+    case result = "result_phase"
+}
+
 struct Story: Codable, Hashable, Identifiable {
     var id: Int
     var tag: String
     var turn: [Statement]
+    var personalEvidenceIDs: [Int]
+    var physicalEvidenceIDs: [Int]
+
+    var kind: StoryTag? { StoryTag(rawValue: tag) }
+    var hasEvidenceAssignments: Bool { !personalEvidenceIDs.isEmpty || !physicalEvidenceIDs.isEmpty }
+
+    func evidenceIDs(for kind: EvidenceKind) -> [Int] {
+        kind == .personal ? personalEvidenceIDs : physicalEvidenceIDs
+    }
 
     struct Statement: Codable, Hashable {
         var id: UUID
@@ -117,5 +133,7 @@ struct Story: Codable, Hashable, Identifiable {
         self.id = data.id
         self.tag = data.tag
         self.turn = data.turn.map({ Statement(data: $0) })
+        self.personalEvidenceIDs = data.personalEvidences
+        self.physicalEvidenceIDs = data.physicalEvidences
     }
 }

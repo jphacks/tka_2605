@@ -25,6 +25,14 @@ final class GameManager {
             : "接続が切れました。同じ相手との再接続を待っています"
     }
     var myEvidences: [Evidence] { state?.evidences(for: myKind) ?? [] }
+    var currentStory: Story? { state?.currentStory }
+    var storyPlayback: StoryPlaybackState? { state?.storyPlayback }
+    var activeStatement: Story.Statement? { state?.activeStatement }
+    var hasActiveStory: Bool { state?.hasActiveStory == true }
+    var canAdvanceInvestigation: Bool {
+        isHost && isReady && state?.canAdvanceInvestigation == true
+    }
+    var currentInvestigationEvidences: [Evidence] { state?.currentInvestigationEvidences(for: myKind) ?? [] }
     var myCollectedCount: Int { myEvidences.filter(\.isCollected).count }
     var myTotalCount: Int { myEvidences.count }
     var totalCollectedCount: Int { state?.totalCollectedCount ?? 0 }
@@ -46,13 +54,37 @@ final class GameManager {
         performHostAction(.beginInvestigation)
     }
 
+    func revealStory(playbackID: UUID) {
+        performHostAction(.revealStory(playbackID: playbackID))
+    }
+
+    func advanceStory(playbackID: UUID) {
+        performHostAction(.advanceStory(playbackID: playbackID))
+    }
+
+    func advanceInvestigation() {
+        guard let state else { return }
+        performHostAction(.advanceInvestigation(index: state.investigationIndex))
+    }
+
     func confirmPerson(id: Int) {
         guard let state else { return }
         performHostAction(.selectPerson(id: id, attempt: state.ending.attempt))
     }
 
+    func beginEvidencePresentation() {
+        guard let state else { return }
+        performHostAction(.beginEvidencePresentation(attempt: state.ending.attempt))
+    }
+
+    func returnToPersonSelection() {
+        guard let state else { return }
+        performHostAction(.returnToPersonSelection(attempt: state.ending.attempt))
+    }
+
     func submitEvidence(_ key: EvidenceKey) {
-        guard isReady, let state, state.phase == .ending,
+        guard isReady, let state, state.phase == .ending, !state.hasActiveStory,
+              state.ending.stage == .evidenceSelection,
               key.kind == myKind, state.evidence(for: key)?.isCollected == true,
               state.ending.personID != nil else { return }
         let action = PlayerAction.submitEvidence(key, attempt: state.ending.attempt)
@@ -67,8 +99,8 @@ final class GameManager {
     }
 
     func recordPhoto(_ image: UIImage, for key: EvidenceKey) {
-        guard isReady, let state, state.phase == .investigation,
-              key.kind == myKind, state.evidence(for: key) != nil else { return }
+        guard isReady, let state, state.phase == .investigation, !state.hasActiveStory,
+              key.kind == myKind, state.isEvidenceAvailableInCurrentInvestigation(key) else { return }
         EpisodeManager.shared.savePhoto(image, for: key)
         lastError = nil
         guard state.evidence(for: key)?.isCollected != true else { return }
@@ -158,10 +190,13 @@ final class GameManager {
 
     private func reconcilePending(with snapshot: GameState) {
         pendingCollections = pendingCollections.filter { key, _ in
-            snapshot.phase == .investigation && snapshot.evidence(for: key)?.isCollected == false
+            snapshot.phase == .investigation && !snapshot.hasActiveStory
+                && snapshot.isEvidenceAvailableInCurrentInvestigation(key)
+                && snapshot.evidence(for: key)?.isCollected == false
         }
         if let submission = pendingSubmission,
-           snapshot.phase != .ending || submission.attempt != snapshot.ending.attempt || snapshot.ending.guestEvidenceID != nil {
+           snapshot.phase != .ending || snapshot.ending.stage != .evidenceSelection
+            || submission.attempt != snapshot.ending.attempt || snapshot.ending.guestEvidenceID != nil {
             pendingSubmission = nil
         }
     }

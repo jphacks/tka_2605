@@ -2,6 +2,7 @@ import ARKit
 import AVFoundation
 import Combine
 import Observation
+import OSLog
 import RealityKit
 import SwiftUI
 
@@ -15,12 +16,20 @@ final class EvidenceARRuntime: NSObject {
     private(set) var selectedEvidenceName: String?
     private(set) var statusMessage = "周囲をゆっくり映してください"
     private(set) var placedCount = 0
+    private(set) var hasCameraFeed = false
 
     @ObservationIgnored let arView: ARView
     @ObservationIgnored private let sceneAnchor = AnchorEntity(world: .zero)
     @ObservationIgnored private let inputEntity = Entity()
     @ObservationIgnored private var surfaceEntities: [UUID: Entity] = [:]
     @ObservationIgnored private var evidenceEntities: [EvidenceKey: Entity] = [:]
+    @ObservationIgnored private let modelFactory = EvidenceModelFactory()
+    @ObservationIgnored private var requestedEvidences: [EvidenceKey: Evidence] = [:]
+    @ObservationIgnored private var photographedKeys: Set<EvidenceKey> = []
+    @ObservationIgnored private var placementFeedback: [EvidencePlacementFeedback] = []
+    @ObservationIgnored private var modelLoadTasks: [EvidenceKey: Task<Void, Never>] = [:]
+    @ObservationIgnored private var modelLoadErrors: [EvidenceKey: String] = [:]
+    @ObservationIgnored private var lastLoggedSurfaceSummary: String?
     @ObservationIgnored private var sceneSubscription: (any Cancellable)?
     @ObservationIgnored private var gameID: UUID?
     @ObservationIgnored private var evidenceKind: EvidenceKind?
@@ -37,6 +46,8 @@ final class EvidenceARRuntime: NSObject {
     @ObservationIgnored private var captureError: String?
 
     private static var systemsRegistered = false
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "EvidenceAR", category: "Models")
+    private static let surfaceLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "EvidenceAR", category: "Surfaces")
 
     override init() {
         Self.registerSystems()
@@ -56,13 +67,22 @@ final class EvidenceARRuntime: NSObject {
     }
 
     func configure(gameID: UUID, evidences: [Evidence], kind: EvidenceKind) {
+        let previousKeys = Set(requestedEvidences.keys)
+        requestedEvidences = Dictionary(uniqueKeysWithValues: evidences.map {
+            (EvidenceKey(kind: kind, id: $0.id), $0)
+        })
         if self.gameID != gameID || evidenceKind != kind {
+            hasCameraFeed = false
             generation = UUID()
+            cancelModelLoads()
+            photographedKeys.removeAll()
+            placementFeedback.removeAll()
             invalidateCapture()
             for entity in evidenceEntities.values { entity.removeFromParent() }
             for entity in surfaceEntities.values { entity.removeFromParent() }
             evidenceEntities.removeAll()
             surfaceEntities.removeAll()
+            lastLoggedSurfaceSummary = nil
             inputEntity.components.set(EvidenceARInputComponent())
             inputEntity.components.set(EvidenceAROutputComponent())
             self.gameID = gameID
@@ -72,27 +92,92 @@ final class EvidenceARRuntime: NSObject {
             captureError = nil
             for evidence in evidences {
                 let key = EvidenceKey(kind: kind, id: evidence.id)
-                let entity = EvidenceModelFactory.make(evidence: evidence, key: key)
-                evidenceEntities[key] = entity
-                sceneAnchor.addChild(entity)
+                loadModel(evidence: evidence, key: key)
             }
             placedCount = 0
             selectedEvidenceName = nil
             canCapture = false
             if attached { startSessionIfPossible() }
         } else {
-            // Snapshots change collection flags without resetting local anchors or photos.
+            // 調査が進んだら対象Entityだけを差し替え、AR空間と認識面は維持する。
+            let requestedKeys = Set(evidences.map { EvidenceKey(kind: kind, id: $0.id) })
+            if requestedKeys != previousKeys {
+                generation = UUID()
+                cancelModelLoads()
+                invalidateCapture()
+                clearSelection()
+                for key in Array(evidenceEntities.keys) where !requestedKeys.contains(key) {
+                    evidenceEntities.removeValue(forKey: key)?.removeFromParent()
+                }
+                for evidence in evidences {
+                    let key = EvidenceKey(kind: kind, id: evidence.id)
+                    guard evidenceEntities[key] == nil else { continue }
+                    loadModel(evidence: evidence, key: key)
+                }
+                modifyInput {
+                    $0.relocationKeys.formIntersection(requestedKeys)
+                    $0.surfaceRevision &+= 1
+                    $0.processedSurfaceRevision = -1
+                    $0.placementElapsed = 1
+                }
+                placedCount = evidenceEntities.values.filter {
+                    $0.components[EvidencePlacementComponent.self]?.isValid == true
+                }.count
+            }
+            // 同じ調査の状態同期では配置を維持し、収集済み表示だけを更新する。
             for evidence in evidences {
                 let key = EvidenceKey(kind: kind, id: evidence.id)
                 guard let entity = evidenceEntities[key],
                       var component = entity.components[EvidenceComponent.self]
                 else { continue }
                 component.isCollected = evidence.isCollected
+                component.isPhotographed = photographedKeys.contains(key)
                 entity.components.set(component)
                 entity.findEntity(named: EvidenceModelFactory.collectedName)?.isEnabled = evidence.isCollected
             }
         }
         updateStatus()
+    }
+
+    private func cancelModelLoads() {
+        for task in modelLoadTasks.values { task.cancel() }
+        modelLoadTasks.removeAll()
+        modelLoadErrors.removeAll()
+    }
+
+    private func loadModel(evidence: Evidence, key: EvidenceKey) {
+        let loadGeneration = generation
+        let factory = modelFactory
+        modelLoadTasks[key] = Task { @MainActor [weak self] in
+            do {
+                let entity = try await factory.make(evidence: evidence, key: key)
+                try Task.checkCancellation()
+                guard let self, self.generation == loadGeneration,
+                      let current = self.requestedEvidences[key] else { return }
+                if var component = entity.components[EvidenceComponent.self] {
+                    component.isCollected = current.isCollected
+                    component.isPhotographed = self.photographedKeys.contains(key)
+                    entity.components.set(component)
+                }
+                entity.findEntity(named: EvidenceModelFactory.collectedName)?.isEnabled = current.isCollected
+                self.evidenceEntities[key] = entity
+                self.sceneAnchor.addChild(entity)
+                self.modelLoadTasks.removeValue(forKey: key)
+                // A plane may have been recognized while this asset was loading.
+                self.modifyInput {
+                    $0.surfaceRevision &+= 1
+                    $0.processedSurfaceRevision = -1
+                    $0.placementElapsed = 1
+                }
+                self.updateStatus()
+            } catch {
+                guard let self, self.generation == loadGeneration, !Task.isCancelled else { return }
+                self.modelLoadTasks.removeValue(forKey: key)
+                Self.logger.error("Model loading failed: \(evidence.modelResourceName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                self.modelLoadErrors[key] = evidence.name
+                self.updateStatus()
+            }
+        }
     }
 
     func setInteractionEnabled(_ enabled: Bool) {
@@ -111,6 +196,15 @@ final class EvidenceARRuntime: NSObject {
         updateStatus()
     }
 
+    func setPhotographedEvidenceKeys(_ keys: Set<EvidenceKey>) {
+        photographedKeys = keys.intersection(requestedEvidences.keys)
+        for (key, entity) in evidenceEntities {
+            guard var component = entity.components[EvidenceComponent.self] else { continue }
+            component.isPhotographed = photographedKeys.contains(key)
+            entity.components.set(component)
+        }
+    }
+
     func setPhotographing(_ enabled: Bool) {
         let wasPhotographing = inputEntity.components[EvidenceARInputComponent.self]?.photographing == true
         guard wasPhotographing != enabled else { return }
@@ -119,6 +213,36 @@ final class EvidenceARRuntime: NSObject {
         captureError = nil
         modifyInput { $0.photographing = enabled }
         updateStatus()
+    }
+
+    /// Submit a local ECS command. Photos, collected flags, session tracking and
+    /// recognized planes are retained; only requested uncollected placements reset.
+    @discardableResult
+    func relocateUnacquiredEvidence(keys: Set<EvidenceKey>) -> Bool {
+        guard !isCapturing,
+              let input = inputEntity.components[EvidenceARInputComponent.self],
+              input.interactionEnabled, !input.photographing else { return false }
+        let targets = keys.filter {
+            requestedEvidences[$0]?.isCollected == false && !photographedKeys.contains($0)
+        }
+        guard !targets.isEmpty else { return false }
+        invalidateCapture()
+        clearSelection()
+        captureError = nil
+        // A failed import has no Entity for the placement System to reset.
+        // Explicit relocation must retry that import as well as clear placement.
+        for key in targets where evidenceEntities[key] == nil && modelLoadTasks[key] == nil {
+            guard let evidence = requestedEvidences[key] else { continue }
+            modelLoadErrors.removeValue(forKey: key)
+            loadModel(evidence: evidence, key: key)
+        }
+        modifyInput {
+            $0.relocationKeys.formUnion(targets)
+            $0.processedSurfaceRevision = -1
+            $0.placementElapsed = 1
+        }
+        updateStatus()
+        return true
     }
 
     func capturePhoto(completion: @escaping (EvidenceKey, UIImage) -> Void) {
@@ -145,6 +269,7 @@ final class EvidenceARRuntime: NSObject {
 
     fileprivate func detach() {
         attached = false
+        hasCameraFeed = false
         invalidateCapture()
         clearSelection()
         modifyInput { $0.trackingNormal = false }
@@ -210,9 +335,12 @@ final class EvidenceARRuntime: NSObject {
     private func updateCameraInput() {
         guard attached else { return }
         guard sessionRunning, let frame = arView.session.currentFrame else {
+            hasCameraFeed = false
             modifyInput { $0.trackingNormal = false }
             return
         }
+        hasCameraFeed = !sessionInterrupted
+            && ProcessInfo.processInfo.systemUptime - frame.timestamp < 0.5
         let orientation = arView.window?.windowScene?.effectiveGeometry.interfaceOrientation ?? .portrait
         let viewRotationAngle: CGFloat
         switch orientation {
@@ -256,6 +384,7 @@ final class EvidenceARRuntime: NSObject {
     private func consumeSystemOutput() {
         guard var output = inputEntity.components[EvidenceAROutputComponent.self] else { return }
         placedCount = output.placedCount
+        placementFeedback = output.placementFeedback
         selectedEvidenceName = output.selectedName
         canCapture = output.canCapture && !isCapturing
         if let decision = output.captureDecision {
@@ -358,6 +487,14 @@ final class EvidenceARRuntime: NSObject {
         let input = inputEntity.components[EvidenceARInputComponent.self]
         guard input?.interactionEnabled == true else { statusMessage = "操作を一時停止しています"; return }
         if isCapturing { statusMessage = "撮影しています"; return }
+        if let error = modelLoadErrors.sorted(by: { $0.key.id < $1.key.id }).first?.value {
+            statusMessage = "「\(error)」のモデルを読み込めませんでした"
+            return
+        }
+        if !modelLoadTasks.isEmpty {
+            statusMessage = "証拠モデルを読み込んでいます"
+            return
+        }
         if input?.trackingNormal != true { statusMessage = "周囲をゆっくり映して空間認識を待ってください"; return }
         if evidenceEntities.values.contains(where: { $0.components[EvidenceComponent.self]?.requiredSurface == nil }) {
             statusMessage = "このエピソードには対応していない配置条件が含まれています"
@@ -366,9 +503,12 @@ final class EvidenceARRuntime: NSObject {
         } else if input?.photographing == true {
             statusMessage = "証拠の30cm以内まで近づき、画面内の証拠をタップしてください"
         } else if placedCount < evidenceEntities.count {
-            statusMessage = "指定の面と1mの間隔を確認中です。周囲をゆっくり映してください"
+            let messages = placementFeedback.map(\.message)
+            statusMessage = messages.isEmpty
+                ? "指定の面と1mの間隔を確認中です。周囲をゆっくり映してください"
+                : messages.joined(separator: "\n")
         } else {
-            statusMessage = "証拠を見つけたら撮影を開始してください"
+            statusMessage = "証拠を\(placedCount)件設置しています。周囲を見渡して探してください"
         }
     }
 
@@ -386,7 +526,22 @@ final class EvidenceARRuntime: NSObject {
                 sceneAnchor.addChild(surface)
             }
         }
+        logSurfaceClassificationsIfChanged()
         modifyInput { $0.surfaceRevision &+= 1 }
+    }
+
+    /// Surface recognition can stall before placement ever runs. Log ARKit's
+    /// actual classifications without changing or substituting the required class.
+    private func logSurfaceClassificationsIfChanged() {
+        var counts = ["window": 0]
+        for entity in surfaceEntities.values {
+            let classification = entity.components[RecognizedSurfaceComponent.self]?.classification
+            counts[classification?.rawValue ?? "unclassified", default: 0] += 1
+        }
+        let summary = counts.keys.sorted().map { "\($0)=\(counts[$0]!)" }.joined(separator: ", ")
+        guard summary != lastLoggedSurfaceSummary else { return }
+        lastLoggedSurfaceSummary = summary
+        Self.surfaceLogger.info("AR plane classifications: \(summary, privacy: .public)")
     }
 }
 
@@ -405,11 +560,13 @@ extension EvidenceARRuntime: @preconcurrency ARSessionDelegate {
         for anchor in anchors {
             surfaceEntities.removeValue(forKey: anchor.identifier)?.removeFromParent()
         }
+        logSurfaceClassificationsIfChanged()
         modifyInput { $0.surfaceRevision &+= 1 }
     }
 
     func sessionWasInterrupted(_ session: ARSession) {
         sessionInterrupted = true
+        hasCameraFeed = false
         invalidateCapture()
         clearSelection()
         modifyInput { $0.trackingNormal = false }
@@ -423,6 +580,7 @@ extension EvidenceARRuntime: @preconcurrency ARSessionDelegate {
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
+        hasCameraFeed = false
         invalidateCapture()
         clearSelection()
         modifyInput { $0.trackingNormal = false }

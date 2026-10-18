@@ -66,19 +66,25 @@ final class GameRulesTests: XCTestCase {
         XCTAssertEqual(state.totalCollectedCount, 1)
     }
 
-    func testEndingStartsOnlyWhenBothRolesCollectEveryEvidence() {
+    func testEndingRequiresBothRolesToCollectEveryEvidenceAndHostToAdvance() {
         var state = makeInvestigatingState()
         XCTAssertTrue(state.apply(.collectEvidence(key(.personal, 0)), from: .personal))
         XCTAssertTrue(state.apply(.collectEvidence(key(.personal, 1)), from: .personal))
         XCTAssertTrue(state.apply(.collectEvidence(key(.physical, 0)), from: .physical))
         XCTAssertEqual(state.totalCollectedCount, 3)
         XCTAssertEqual(state.phase, .investigation)
+        XCTAssertFalse(state.canAdvanceInvestigation)
+        assertRejected(.advanceInvestigation(index: state.investigationIndex), from: .personal, state: &state)
 
         let revision = state.revision
         XCTAssertTrue(state.apply(.collectEvidence(key(.physical, 1)), from: .physical))
         XCTAssertEqual(state.totalCollectedCount, state.totalEvidenceCount)
-        XCTAssertEqual(state.phase, .ending)
+        XCTAssertEqual(state.phase, .investigation)
         XCTAssertEqual(state.revision, revision + 1)
+        XCTAssertTrue(state.canAdvanceInvestigation)
+        assertRejected(.advanceInvestigation(index: state.investigationIndex), from: .physical, state: &state)
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: state.investigationIndex), from: .personal))
+        XCTAssertEqual(state.phase, .ending)
         assertRejected(.collectEvidence(key(.personal, 0)), from: .personal, state: &state)
     }
 
@@ -91,6 +97,7 @@ final class GameRulesTests: XCTestCase {
         assertRejected(.selectPerson(id: 999, attempt: 0), from: .personal, state: &state)
 
         XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         assertRejected(.selectPerson(id: 4, attempt: 0), from: .personal, state: &state)
         XCTAssertEqual(state.ending.personID, 3)
     }
@@ -99,6 +106,7 @@ final class GameRulesTests: XCTestCase {
         var state = makeEndingState()
         assertRejected(.submitEvidence(key(.personal, 0), attempt: 0), from: .personal, state: &state)
         XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         assertRejected(.submitEvidence(key(.physical, 1), attempt: 0), from: .personal, state: &state)
         assertRejected(.submitEvidence(key(.personal, 0), attempt: 0), from: .physical, state: &state)
         assertRejected(.submitEvidence(key(.physical, 999), attempt: 0), from: .physical, state: &state)
@@ -107,6 +115,7 @@ final class GameRulesTests: XCTestCase {
     func testOneCorrectSubmissionWaitsForTheOtherPlayerAndCannotBeReplaced() {
         var state = makeEndingState()
         XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         XCTAssertTrue(state.apply(.submitEvidence(key(.personal, 0), attempt: 0), from: .personal))
         XCTAssertEqual(state.phase, .ending)
         XCTAssertEqual(state.ending.hostEvidenceID, 0)
@@ -118,6 +127,7 @@ final class GameRulesTests: XCTestCase {
         for guestFirst in [false, true] {
             var state = makeEndingState()
             XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+            beginFixtureEvidencePresentation(in: &state)
             let submissions: [(EvidenceKind, Int)] = guestFirst
                 ? [(.physical, 1), (.personal, 0)]
                 : [(.personal, 0), (.physical, 1)]
@@ -138,12 +148,13 @@ final class GameRulesTests: XCTestCase {
         for (personID, personalID, physicalID) in incorrectAnswers {
             var state = makeEndingState()
             XCTAssertTrue(state.apply(.selectPerson(id: personID, attempt: 0), from: .personal))
+            beginFixtureEvidencePresentation(in: &state)
             XCTAssertTrue(state.apply(.submitEvidence(key(.personal, personalID), attempt: 0), from: .personal))
             XCTAssertEqual(state.ending.attempt, 0, "Wait until both players submit before judging")
             XCTAssertTrue(state.apply(.submitEvidence(key(.physical, physicalID), attempt: 0), from: .physical))
 
             XCTAssertEqual(state.phase, .ending)
-            XCTAssertEqual(state.ending, EndingState(attempt: 1))
+            XCTAssertEqual(state.ending, EndingState(attempt: 1, failedAttempts: 1))
             XCTAssertEqual(state.totalCollectedCount, state.totalEvidenceCount)
         }
     }
@@ -151,6 +162,7 @@ final class GameRulesTests: XCTestCase {
     func testStaleAndFutureAttemptActionsAreRejectedAndNewAttemptCanClear() {
         var state = makeEndingState()
         XCTAssertTrue(state.apply(.selectPerson(id: 4, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         XCTAssertTrue(state.apply(.submitEvidence(key(.personal, 0), attempt: 0), from: .personal))
         XCTAssertTrue(state.apply(.submitEvidence(key(.physical, 1), attempt: 0), from: .physical))
         XCTAssertEqual(state.ending.attempt, 1)
@@ -158,6 +170,7 @@ final class GameRulesTests: XCTestCase {
         assertRejected(.selectPerson(id: 3, attempt: 0), from: .personal, state: &state)
         assertRejected(.selectPerson(id: 3, attempt: 2), from: .personal, state: &state)
         XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 1), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         assertRejected(.submitEvidence(key(.physical, 1), attempt: 0), from: .physical, state: &state)
         assertRejected(.submitEvidence(key(.personal, 0), attempt: 2), from: .personal, state: &state)
 
@@ -169,6 +182,7 @@ final class GameRulesTests: XCTestCase {
     func testGameStateAndEveryActionRoundTripThroughJSON() throws {
         var state = makeEndingState()
         XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         XCTAssertTrue(state.apply(.submitEvidence(key(.personal, 0), attempt: 0), from: .personal))
         let encoder = JSONEncoder()
         let decoder = JSONDecoder()
@@ -176,6 +190,11 @@ final class GameRulesTests: XCTestCase {
 
         let actions: [PlayerAction] = [
             .beginInvestigation,
+            .revealStory(playbackID: UUID()),
+            .advanceStory(playbackID: UUID()),
+            .advanceInvestigation(index: 2),
+            .beginEvidencePresentation(attempt: 7),
+            .returnToPersonSelection(attempt: 7),
             .collectEvidence(key(.personal, 0)),
             .collectEvidence(key(.physical, 0)),
             .selectPerson(id: 3, attempt: 7),
@@ -205,8 +224,7 @@ final class GameRulesTests: XCTestCase {
 
     private func makeInvestigatingState() -> GameState {
         var state = makeState()
-        XCTAssertTrue(state.start())
-        XCTAssertTrue(state.apply(.beginInvestigation, from: .personal))
+        beginFixtureInvestigation(in: &state)
         return state
     }
 
@@ -222,6 +240,8 @@ final class GameRulesTests: XCTestCase {
                 XCTAssertTrue(state.apply(.collectEvidence(key(kind, evidence.id)), from: kind))
             }
         }
+        XCTAssertTrue(state.canAdvanceInvestigation)
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: state.investigationIndex), from: .personal))
         XCTAssertEqual(state.phase, .ending)
     }
 

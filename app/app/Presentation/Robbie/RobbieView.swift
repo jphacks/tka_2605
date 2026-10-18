@@ -71,7 +71,7 @@ struct RobbieView: View {
                 Text(viewModel.getEpisodeTitle() ?? "エピソードを受信中")
                     .font(.system(size: 19, weight: .bold))
                     .lineLimit(2)
-                Text(viewModel.getEpisodeDescription() ?? "ホストが選んだ事件の情報を待っています。")
+                Text(viewModel.getEpisodeDescription() ?? "ホストが選んだ事件の情報を待っている。")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .lineSpacing(4)

@@ -4,29 +4,27 @@ struct GamePhaseView: View {
     @Bindable var viewModel: GameViewModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                switch viewModel.phase {
-                case .opening:
-                    opening
-                case .ending:
-                    ending
-                case .cleared:
-                    cleared
-                case .investigation, .none:
-                    ProgressView("ゲーム画面へ移動しています")
-                        .frame(maxWidth: .infinity)
-                }
+        Group {
+            if let playback = viewModel.storyPlayback, let statement = viewModel.activeStatement {
+                StorySceneView(
+                    statement: statement,
+                    speakerName: viewModel.speakerName,
+                    playbackID: playback.id,
+                    isTextRevealed: playback.isTextRevealed,
+                    isHost: viewModel.isHost,
+                    isReady: viewModel.isReady,
+                    onReveal: { viewModel.revealStory(playbackID: playback.id) },
+                    onAdvance: { viewModel.advanceStory(playbackID: playback.id) }
+                )
+            } else {
+                phaseControls
             }
-            .padding(28)
-            .frame(maxWidth: 660)
-            .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
-        .disabled(!viewModel.isReady && viewModel.phase != .cleared)
+        .disabled(!viewModel.isReady && requiresConnection)
         .overlay {
-            if !viewModel.isReady && viewModel.phase != .cleared {
+            if !viewModel.isReady && requiresConnection {
                 GameConnectionOverlay(message: viewModel.connectionMessage)
             }
         }
@@ -38,6 +36,31 @@ struct GamePhaseView: View {
         }
         .task {
             viewModel.synchronize()
+        }
+    }
+
+    private var requiresConnection: Bool {
+        viewModel.phase != .cleared || viewModel.isShowingStory
+    }
+
+    private var phaseControls: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                switch viewModel.phase {
+                case .opening:
+                    opening
+                case .ending:
+                    ending
+                case .cleared:
+                    cleared
+                case .investigation, .none:
+                    ProgressView("ゲーム画面へ移動している")
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(28)
+            .frame(maxWidth: 660)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -59,7 +82,7 @@ struct GamePhaseView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(viewModel.myRoleDescription)
                     .font(.headline)
-                Text("周囲をゆっくり映して、証拠の札が配置されるのを待ちましょう。札に近づいて撮影すると、証拠を集められます。")
+                Text("周囲をゆっくり映して、証拠の札が配置されるのを待て。札に近づいて撮影すると、証拠を集めることができる。")
                     .foregroundStyle(.secondary)
             }
             .padding(20)
@@ -74,7 +97,7 @@ struct GamePhaseView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             } else {
-                waiting("ホストが調査を開始するのを待っています。")
+                waiting("ホストが調査を開始するのを待機中。")
             }
 
             errorMessage
@@ -83,14 +106,12 @@ struct GamePhaseView: View {
 
     private var ending: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("推理をまとめる")
+            Text("真相を解き明かす")
                 .font(.largeTitle.bold())
                 .padding(.top, 20)
-            Text("2人共通の人物を決め、それぞれが集めた証拠を1つずつ提示してください。")
-                .foregroundStyle(.secondary)
 
             if viewModel.hasPreviousIncorrectAttempt {
-                Label("前の提示では解決できませんでした。人物と証拠を選び直してください。", systemImage: "arrow.counterclockwise")
+                Label("提示する証拠が違うようだ。犯人に決定的な証拠を突きつけろ。", systemImage: "arrow.counterclockwise")
                     .font(.subheadline)
                     .foregroundStyle(.orange)
                     .padding(16)
@@ -98,21 +119,59 @@ struct GamePhaseView: View {
                     .background(.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 14))
             }
 
-            if viewModel.confirmedPersonID == nil {
+            switch viewModel.endingStage {
+            case .personSelection:
+                Text("証言を聞く人物を選んでください。")
+                    .foregroundStyle(.secondary)
                 personSelection
-            } else {
+            case .decision:
+                Label("証言した人物：\(viewModel.confirmedPersonName)", systemImage: "person.fill")
+                    .font(.title3.bold())
+                testimonyDecision
+            case .evidenceSelection:
                 Label("提示先：\(viewModel.confirmedPersonName)", systemImage: "person.fill")
                     .font(.title3.bold())
+                Text("それぞれが集めた証拠を1つずつ提示してください。")
+                    .foregroundStyle(.secondary)
                 evidenceSelection
+            case .testimony:
+                ProgressView("証言を準備しています")
             }
 
             errorMessage
         }
     }
 
+    private var testimonyDecision: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("この証言に、証拠を突きつけますか？")
+                .font(.headline)
+
+            if viewModel.isHost {
+                Button(action: viewModel.beginEvidencePresentation) {
+                    Text("証拠を提示する")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!viewModel.canChooseEndingAction)
+
+                Button(action: viewModel.returnToPersonSelection) {
+                    Text("人物選択に戻る")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(!viewModel.canChooseEndingAction)
+            } else {
+                waiting("ホストが証拠を提示するか選んでいます。")
+            }
+        }
+    }
+
     private var personSelection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("1. 提示先の人物")
+            Text("人物を選ぶ")
                 .font(.headline)
 
             if viewModel.isHost {
@@ -130,21 +189,21 @@ struct GamePhaseView: View {
                 }
 
                 Button(action: viewModel.confirmPerson) {
-                    Text(viewModel.isConfirmingPerson ? "人物を確定しています…" : "この人物に確定")
+                    Text(viewModel.isConfirmingPerson ? "人物を確定中…" : "この人物の証言を聞く")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(!viewModel.canConfirmPerson)
             } else {
-                waiting("ホストが提示先の人物を決めています。")
+                waiting("ホストが証言を聞く人物を選んでいます。")
             }
         }
     }
 
     private var evidenceSelection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("2. 自分の証拠")
+            Text("自分の証拠")
                 .font(.headline)
 
             if viewModel.mySubmittedEvidenceID != nil || viewModel.isSubmittingEvidence {
@@ -154,9 +213,9 @@ struct GamePhaseView: View {
                         .font(.headline)
                 }
                 if viewModel.mySubmittedEvidenceID == nil {
-                    waiting("証拠を確定しています。")
+                    waiting("証拠を確定中。")
                 } else {
-                    waiting("相手の証拠を待っています（\(viewModel.submittedCount) / 2人）。")
+                    waiting("相手の証拠を待機中（\(viewModel.submittedCount) / 2人）。")
                 }
             } else {
                 ForEach(viewModel.myEvidences) { evidence in
@@ -218,7 +277,7 @@ struct GamePhaseView: View {
                 .font(.largeTitle.bold())
             Text(viewModel.episodeName)
                 .font(.title2)
-            Text("2人が集めた証拠と推理で、事件の真相にたどり着きました。")
+            Text("おめでとう。二人で協力し、見事に事件を解決した。")
                 .foregroundStyle(.secondary)
 
             Button(action: viewModel.returnToTitle) {

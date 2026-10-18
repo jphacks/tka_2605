@@ -1,13 +1,15 @@
 import SwiftUI
 
 struct GameView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = GameViewModel()
 
     var body: some View {
         GeometryReader { geometry in
             let photographing = viewModel.arMode == .photographing
             let aspectRatio: CGFloat = photographing ? 1 : 9.0 / 16.0
-            let reservedHeight: CGFloat = photographing ? 232 : 198
+            let progressHeight: CGFloat = viewModel.isInvestigationComplete ? 58 : 0
+            let reservedHeight: CGFloat = photographing ? 232 : (viewModel.shouldShowRelocationSuggestion ? 250 : 198) + progressHeight
             let availableHeight = max(1, geometry.size.height - reservedHeight)
             let viewportWidth = min(geometry.size.width - 32, availableHeight * aspectRatio)
 
@@ -17,6 +19,23 @@ struct GameView: View {
                 ZStack(alignment: .topTrailing) {
                     // Keep this bridge in the same position for every screen mode.
                     EvidenceARView(runtime: viewModel.arRuntime)
+
+                    if viewModel.isShowingARIntroduction {
+                        ARIntroductionView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                            .task {
+                                do {
+                                    try await Task.sleep(for: .seconds(5))
+                                } catch {
+                                    return
+                                }
+                                withAnimation(.easeOut(duration: 0.4)) {
+                                    viewModel.dismissARIntroduction()
+                                }
+                            }
+                    }
 
                     collectionCounts
                         .padding(12)
@@ -36,7 +55,8 @@ struct GameView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .disabled(!viewModel.isReady)
+            .disabled(!viewModel.isReady || viewModel.isShowingRelocationConfirmation)
+            .accessibilityHidden(viewModel.isShowingRelocationConfirmation)
             .overlay {
                 if !viewModel.isReady {
                     GameConnectionOverlay(message: viewModel.connectionMessage)
@@ -46,21 +66,39 @@ struct GameView: View {
         .background(Color.black.ignoresSafeArea())
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
+        .overlay {
+            if viewModel.isShowingRelocationConfirmation {
+                EvidenceRelocationConfirmationView(
+                    onCancel: viewModel.cancelRelocation,
+                    onRelocate: viewModel.confirmRelocation
+                )
+            }
+        }
         .sheet(
             isPresented: $viewModel.isShowingEvidence,
             onDismiss: viewModel.evidenceSheetDidDismiss
         ) {
             EvidenceCollectionView(viewModel: viewModel)
         }
-        .fullScreenCover(item: $viewModel.phasePresentation) { _ in
+        .fullScreenCover(
+            item: $viewModel.phasePresentation,
+            onDismiss: viewModel.phaseScreenDidDismiss
+        ) { _ in
             GamePhaseView(viewModel: viewModel)
                 .interactiveDismissDisabled()
+                .onAppear { viewModel.phaseScreenDidAppear() }
         }
         .onChange(of: viewModel.synchronization) { _, _ in
             viewModel.synchronize()
         }
+        .onAppear {
+            viewModel.gameScreenDidAppear(isSceneActive: scenePhase == .active)
+        }
         .task {
-            viewModel.synchronize()
+            await viewModel.runSearchAssistanceTimer()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            viewModel.sceneActivityDidChange(isActive: phase == .active)
         }
         .onDisappear {
             viewModel.stopInteraction()
@@ -156,6 +194,32 @@ struct GameView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .controlSize(.large)
+
+                if viewModel.isInvestigationComplete {
+                    if viewModel.isHost {
+                        Button(action: viewModel.advanceInvestigation) {
+                            Label("ストーリー進展", systemImage: "book.pages")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(!viewModel.canAdvanceInvestigation)
+                    } else {
+                        Text("証拠が揃いました。ホストのストーリー進展を待っています。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+
+                if viewModel.shouldShowRelocationSuggestion {
+                    Button(action: viewModel.suggestRelocation) {
+                        Label("証拠が見つからない？ 再設置する", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
         }
     }
