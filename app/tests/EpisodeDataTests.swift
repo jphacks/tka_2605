@@ -52,11 +52,12 @@ final class EpisodeDataTests: XCTestCase {
         XCTAssertThrowsError(try catalog.resolve(episode: episode))
     }
 
-    func testBothPlayersMustCompleteEachStoryAndOnlyFinalStoryEntersEnding() throws {
+    func testBothPlayersMustCompleteEachStoryAndHostAdvancesOnlyFinalStoryIntoEnding() throws {
         var state = try state()
         XCTAssertTrue(state.start())
         XCTAssertEqual(state.currentStory?.id, 0)
-        XCTAssertTrue(state.apply(.beginInvestigation, from: .personal))
+        XCTAssertTrue(state.hasActiveStory)
+        finishStoryPlayback(in: &state)
         XCTAssertEqual(state.investigationStories.count, 3)
         XCTAssertEqual(state.currentStory?.id, 1)
         XCTAssertEqual(state.currentInvestigationEvidences(for: .personal).map(\.id), [1, 5])
@@ -68,22 +69,33 @@ final class EpisodeDataTests: XCTestCase {
         for id in [1, 5] { XCTAssertTrue(state.apply(.collectEvidence(key(.personal, id)), from: .personal)) }
         XCTAssertTrue(state.apply(.collectEvidence(key(.physical, 2)), from: .physical))
         XCTAssertEqual(state.currentStory?.id, 1, "One player's completion must not advance the stage")
+        XCTAssertFalse(state.canAdvanceInvestigation)
         XCTAssertTrue(state.apply(.collectEvidence(key(.physical, 5)), from: .physical))
+        XCTAssertEqual(state.currentStory?.id, 1, "Collection must not skip the host's progress button")
+        XCTAssertTrue(state.canAdvanceInvestigation)
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: 0), from: .personal))
         XCTAssertEqual(state.currentStory?.id, 2)
         XCTAssertEqual(state.investigationIndex, 1)
         XCTAssertEqual(state.totalCollectedCount, 4)
         XCTAssertEqual(state.phase, .investigation)
+        XCTAssertTrue(state.hasActiveStory)
+        finishStoryPlayback(in: &state)
 
         try collectCurrentStory(in: &state)
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: 1), from: .personal))
         XCTAssertEqual(state.currentStory?.id, 3)
         XCTAssertEqual(state.totalCollectedCount, 8)
         XCTAssertEqual(state.phase, .investigation)
+        finishStoryPlayback(in: &state)
         try collectCurrentStory(in: &state)
+        XCTAssertEqual(state.phase, .investigation)
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: 2), from: .personal))
         XCTAssertEqual(state.phase, .ending)
         XCTAssertEqual(state.currentStory?.id, 4)
         XCTAssertEqual(state.totalCollectedCount, 12)
 
         XCTAssertTrue(state.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &state)
         XCTAssertTrue(state.apply(.submitEvidence(key(.personal, 0), attempt: 0), from: .personal))
         XCTAssertTrue(state.apply(.submitEvidence(key(.physical, 0), attempt: 0), from: .physical))
         XCTAssertEqual(state.phase, .cleared)
@@ -93,9 +105,15 @@ final class EpisodeDataTests: XCTestCase {
     func testIntermediateStageAndCollectedEvidenceSurviveSnapshotRoundTrip() throws {
         var original = try investigatingState()
         try collectCurrentStory(in: &original)
+        XCTAssertTrue(original.apply(.advanceInvestigation(index: original.investigationIndex), from: .personal))
+        XCTAssertTrue(original.hasActiveStory)
+        let playback = try XCTUnwrap(original.storyPlayback)
+        XCTAssertTrue(original.apply(.revealStory(playbackID: playback.id), from: .personal))
         let decoded = try JSONDecoder().decode(GameState.self, from: JSONEncoder().encode(original))
         XCTAssertEqual(decoded, original)
         XCTAssertEqual(decoded.currentStory?.id, 2)
+        XCTAssertEqual(decoded.storyPlayback, original.storyPlayback)
+        XCTAssertEqual(decoded.storyPlayback?.isTextRevealed, true)
         XCTAssertEqual(decoded.evidence(for: key(.personal, 1))?.isCollected, true)
         XCTAssertEqual(decoded.currentInvestigationEvidences(for: .physical).map(\.id), [0, 4])
     }
@@ -120,6 +138,9 @@ final class EpisodeDataTests: XCTestCase {
         for kind in EvidenceKind.allCases {
             for id in [0, 1] { XCTAssertTrue(state.apply(.collectEvidence(key(kind, id)), from: kind)) }
         }
+        XCTAssertEqual(state.phase, .investigation)
+        XCTAssertTrue(state.canAdvanceInvestigation)
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: state.investigationIndex), from: .personal))
         XCTAssertEqual(state.phase, .ending)
     }
 
@@ -141,12 +162,17 @@ final class EpisodeDataTests: XCTestCase {
         game.connectionDidChange(connected: false)
 
         XCTAssertTrue(state.apply(.collectEvidence(key(.physical, 5)), from: .physical))
+        XCTAssertTrue(state.apply(.advanceInvestigation(index: state.investigationIndex), from: .personal))
+        let playback = try XCTUnwrap(state.storyPlayback)
+        XCTAssertTrue(state.apply(.revealStory(playbackID: playback.id), from: .personal))
         peer.clearSent()
         peer.isConnected = true
         game.connectionDidChange(connected: true)
         game.receiveSnapshot(state)
         XCTAssertTrue(game.isReady)
         XCTAssertEqual(game.currentStory?.id, 2)
+        XCTAssertEqual(game.state?.storyPlayback, state.storyPlayback)
+        XCTAssertEqual(game.state?.storyPlayback?.isTextRevealed, true)
         XCTAssertEqual(game.currentInvestigationEvidences.map(\.id), [0, 4])
         XCTAssertEqual(game.myCollectedCount, 2)
         XCTAssertEqual(game.myTotalCount, 6)
@@ -172,8 +198,7 @@ final class EpisodeDataTests: XCTestCase {
 
     private func investigatingState() throws -> GameState {
         var state = try state()
-        XCTAssertTrue(state.start())
-        XCTAssertTrue(state.apply(.beginInvestigation, from: .personal))
+        beginFixtureInvestigation(in: &state)
         return state
     }
 

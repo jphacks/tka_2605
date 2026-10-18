@@ -185,8 +185,7 @@ final class GameSearchAssistanceTests: XCTestCase {
 
     private func investigatingFixture() -> GameState {
         var state = makeGameStateFixture()
-        XCTAssertTrue(state.start())
-        XCTAssertTrue(state.apply(.beginInvestigation, from: .personal))
+        beginFixtureInvestigation(in: &state)
         return state
     }
 

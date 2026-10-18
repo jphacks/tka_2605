@@ -27,7 +27,7 @@ cp "$repo_dir/app/Presentation/Game/GameViewModel.swift" "$harness_dir/Sources/G
 cp "$repo_dir/app/Presentation/Game/EvidenceSearchAssistance.swift" "$harness_dir/Sources/GameRules/EvidenceSearchAssistance.swift"
 cp "$repo_dir/tests/GameRulesTests.swift" "$repo_dir/tests/GameManagerTests.swift" \
     "$repo_dir/tests/GameFixtures.swift" "$repo_dir/tests/EvidenceOrientationTests.swift" \
-    "$repo_dir/tests/EpisodeDataTests.swift" \
+    "$repo_dir/tests/EpisodeDataTests.swift" "$repo_dir/tests/StoryPlaybackTests.swift" \
     "$repo_dir/tests/EvidenceSearchAssistanceTests.swift" "$repo_dir/tests/GameSearchAssistanceTests.swift" \
     "$harness_dir/Tests/GameRulesTests/"
 mkdir -p "$harness_dir/Tests/GameRulesTests/Resources"

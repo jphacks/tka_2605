@@ -131,6 +131,7 @@ final class GameManagerTests: XCTestCase {
     func testPendingSubmissionReplaysOncePerReconnectAndClearsWhenConfirmed() throws {
         var snapshot = endingFixture()
         XCTAssertTrue(snapshot.apply(.selectPerson(id: 3, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &snapshot)
         connectGuest(to: snapshot)
         peer.clearSent()
         game.submitEvidence(guestKey)
@@ -158,6 +159,7 @@ final class GameManagerTests: XCTestCase {
     func testNewEndingAttemptDiscardsOldPendingSubmissionAndAllowsNewAnswer() throws {
         var snapshot = endingFixture()
         XCTAssertTrue(snapshot.apply(.selectPerson(id: 4, attempt: 0), from: .personal))
+        beginFixtureEvidencePresentation(in: &snapshot)
         connectGuest(to: snapshot)
         peer.clearSent()
         game.submitEvidence(guestKey)
@@ -173,6 +175,7 @@ final class GameManagerTests: XCTestCase {
         XCTAssertTrue(playerActions().isEmpty, "The previous attempt's submission must never be replayed")
 
         XCTAssertTrue(snapshot.apply(.selectPerson(id: 3, attempt: 1), from: .personal))
+        beginFixtureEvidencePresentation(in: &snapshot)
         game.receiveSnapshot(snapshot)
         peer.clearSent()
         game.submitEvidence(guestKey)
@@ -254,20 +257,25 @@ final class GameManagerTests: XCTestCase {
             game.recordPhoto(NSImage(), for: EvidenceKey(kind: .personal, id: id))
             game.receiveAction(.collectEvidence(EvidenceKey(kind: .physical, id: id)), gameID: try XCTUnwrap(game.state).gameID, messageID: UUID())
         }
+        XCTAssertEqual(game.phase, .investigation)
+        XCTAssertTrue(game.state?.canAdvanceInvestigation == true)
+        game.advanceInvestigation()
         XCTAssertEqual(game.phase, .ending)
         game.confirmPerson(id: 4)
+        game.beginEvidencePresentation()
         game.submitEvidence(EvidenceKey(kind: .personal, id: 0))
         let gameID = try XCTUnwrap(game.state).gameID
         let previousID = UUID()
         game.receiveAction(.submitEvidence(guestKey, attempt: 0), gameID: gameID, messageID: previousID)
         let reset = try XCTUnwrap(game.state)
-        XCTAssertEqual(reset.ending, EndingState(attempt: 1))
+        XCTAssertEqual(reset.ending, EndingState(attempt: 1, failedAttempts: 1))
 
         game.receiveAction(.submitEvidence(guestKey, attempt: 0), gameID: gameID, messageID: previousID)
         game.receiveAction(.submitEvidence(guestKey, attempt: 0), gameID: gameID, messageID: UUID())
         XCTAssertEqual(game.state, reset)
 
         game.confirmPerson(id: 3)
+        game.beginEvidencePresentation()
         game.receiveAction(.submitEvidence(guestKey, attempt: 1), gameID: gameID, messageID: UUID())
         XCTAssertEqual(game.phase, .ending)
         game.submitEvidence(EvidenceKey(kind: .personal, id: 0))
@@ -319,8 +327,7 @@ final class GameManagerTests: XCTestCase {
 
     private func investigatingFixture() -> GameState {
         var snapshot = makeGameStateFixture()
-        XCTAssertTrue(snapshot.start())
-        XCTAssertTrue(snapshot.apply(.beginInvestigation, from: .personal))
+        beginFixtureInvestigation(in: &snapshot)
         return snapshot
     }
 
@@ -331,6 +338,7 @@ final class GameManagerTests: XCTestCase {
                 XCTAssertTrue(snapshot.apply(.collectEvidence(EvidenceKey(kind: kind, id: evidence.id)), from: kind))
             }
         }
+        XCTAssertTrue(snapshot.apply(.advanceInvestigation(index: snapshot.investigationIndex), from: .personal))
         XCTAssertEqual(snapshot.phase, .ending)
         return snapshot
     }

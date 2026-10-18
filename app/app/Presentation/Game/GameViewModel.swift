@@ -71,6 +71,16 @@ final class GameViewModel {
     }
 
     var phase: GamePhase? { game.phase }
+    var storyPlayback: StoryPlaybackState? { game.state?.storyPlayback }
+    var activeStatement: Story.Statement? { game.state?.activeStatement }
+    var isShowingStory: Bool { game.state?.hasActiveStory == true }
+    var isExploringInvestigation: Bool { phase == .investigation && !isShowingStory }
+    var isInvestigationComplete: Bool { game.state?.canAdvanceInvestigation == true }
+    var canAdvanceInvestigation: Bool { isReady && isHost && isInvestigationComplete }
+    var speakerName: String? {
+        guard let statement = activeStatement, statement.personID != 0 else { return nil }
+        return game.state?.data.persons.first { $0.id == statement.personID }?.name
+    }
     var isReady: Bool { game.isReady }
     var isHost: Bool { game.isHost }
     var episodeName: String { game.state?.episode.name ?? "調査" }
@@ -91,7 +101,7 @@ final class GameViewModel {
     }
 
     private var relocationScope: EvidenceSearchAssistance.Scope? {
-        guard phase == .investigation, let state = game.state else { return nil }
+        guard isExploringInvestigation, let state = game.state else { return nil }
         return .init(gameID: state.gameID, investigationIndex: state.investigationIndex, kind: game.myKind)
     }
 
@@ -102,7 +112,7 @@ final class GameViewModel {
     }
 
     private var canOfferRelocation: Bool {
-        isGameScreenActive && isSceneActive && isReady && phase == .investigation
+        isGameScreenActive && isSceneActive && isReady && isExploringInvestigation
             && arMode == .exploring && arRuntime.hasCameraFeed && !arRuntime.isCapturing
             && !isShowingEvidence && !evidenceSheetIsActive && !isShowingARIntroduction
             && !isPhaseScreenVisible && phasePresentation == nil && !unacquiredEvidenceKeys.isEmpty
@@ -117,6 +127,7 @@ final class GameViewModel {
     }
 
     var confirmedPersonID: Int? { game.state?.ending.personID }
+    var endingStage: EndingStage { game.state?.ending.stage ?? .personSelection }
 
     var confirmedPersonName: String {
         persons.first { $0.id == confirmedPersonID }?.name ?? "選択した人物"
@@ -139,18 +150,24 @@ final class GameViewModel {
     }
 
     var hasPreviousIncorrectAttempt: Bool {
-        (game.state?.ending.attempt ?? 0) > 0
+        (game.state?.ending.failedAttempts ?? 0) > 0
     }
 
     var canConfirmPerson: Bool {
-        isReady && isHost && phase == .ending && confirmedPersonID == nil
+        isReady && isHost && phase == .ending && endingStage == .personSelection && !isShowingStory
+            && confirmedPersonID == nil
             && selectedPersonID != nil && !isConfirmingPerson
     }
 
     var canSubmitEvidence: Bool {
-        isReady && phase == .ending && confirmedPersonID != nil
+        isReady && phase == .ending && endingStage == .evidenceSelection && !isShowingStory
+            && confirmedPersonID != nil
             && selectedEvidenceID != nil && mySubmittedEvidenceID == nil
             && !isSubmittingEvidence
+    }
+
+    var canChooseEndingAction: Bool {
+        isReady && isHost && phase == .ending && endingStage == .decision && !isShowingStory
     }
 
     func photo(for evidence: Evidence) -> UIImage? {
@@ -193,12 +210,12 @@ final class GameViewModel {
             isConfirmingPerson = false
         }
 
-        if phase != .investigation || !isReady {
+        if !isExploringInvestigation || !isReady {
             dismissARIntroduction()
             endPhotography()
         }
 
-        if phase == .investigation {
+        if isExploringInvestigation {
             phasePresentation = nil
         } else {
             // A phase always takes precedence over the dismissible evidence sheet.
@@ -227,6 +244,7 @@ final class GameViewModel {
 
     func phaseScreenDidDismiss() {
         isPhaseScreenVisible = false
+        updateARInteraction()
         showARIntroductionIfNeeded()
         updateSearchAssistance()
     }
@@ -237,7 +255,7 @@ final class GameViewModel {
     }
 
     private func showARIntroductionIfNeeded() {
-        guard phase == .investigation, isReady, arRuntime.hasCameraFeed,
+        guard isExploringInvestigation, isReady, arRuntime.hasCameraFeed,
               !isPhaseScreenVisible, phasePresentation == nil,
               !hasShownARIntroduction,
               arMode == .exploring, !isShowingEvidence, !evidenceSheetIsActive else { return }
@@ -246,12 +264,29 @@ final class GameViewModel {
     }
 
     func beginInvestigation() {
-        guard isReady, isHost, phase == .opening else { return }
+        guard isReady, isHost, phase == .opening, !isShowingStory else { return }
         game.beginInvestigation()
     }
 
+    func revealStory(playbackID: UUID) {
+        guard isReady, isHost else { return }
+        game.revealStory(playbackID: playbackID)
+    }
+
+    func advanceStory(playbackID: UUID) {
+        guard isReady, isHost else { return }
+        game.advanceStory(playbackID: playbackID)
+    }
+
+    func advanceInvestigation() {
+        guard canAdvanceInvestigation else { return }
+        dismissARIntroduction()
+        endPhotography()
+        game.advanceInvestigation()
+    }
+
     func beginPhotography() {
-        guard isReady, phase == .investigation, !isShowingEvidence, !isShowingRelocationConfirmation else { return }
+        guard isReady, isExploringInvestigation, !isShowingEvidence, !isShowingRelocationConfirmation else { return }
         dismissARIntroduction()
         arMode = .photographing
         activeCaptureID = nil
@@ -267,7 +302,7 @@ final class GameViewModel {
     }
 
     func capturePhoto() {
-        guard isReady, phase == .investigation, arMode == .photographing,
+        guard isReady, isExploringInvestigation, arMode == .photographing,
               arRuntime.canCapture, !arRuntime.isCapturing,
               let gameID = game.state?.data.id else { return }
 
@@ -277,7 +312,7 @@ final class GameViewModel {
             guard let self,
                   self.activeCaptureID == captureID,
                   self.game.state?.data.id == gameID,
-                  self.phase == .investigation,
+                  self.isExploringInvestigation,
                   self.isReady,
                   self.arMode == .photographing else { return }
             self.game.recordPhoto(image, for: key)
@@ -286,7 +321,7 @@ final class GameViewModel {
     }
 
     func showEvidence() {
-        guard isReady, phase == .investigation, arMode == .exploring, !isShowingRelocationConfirmation else { return }
+        guard isReady, isExploringInvestigation, arMode == .exploring, !isShowingRelocationConfirmation else { return }
         dismissARIntroduction()
         evidenceSheetIsActive = true
         isShowingEvidence = true
@@ -309,6 +344,16 @@ final class GameViewModel {
     func submitEvidence() {
         guard canSubmitEvidence, let selectedEvidenceID else { return }
         game.submitEvidence(EvidenceKey(kind: game.myKind, id: selectedEvidenceID))
+    }
+
+    func beginEvidencePresentation() {
+        guard canChooseEndingAction else { return }
+        game.beginEvidencePresentation()
+    }
+
+    func returnToPersonSelection() {
+        guard canChooseEndingAction else { return }
+        game.returnToPersonSelection()
     }
 
     func returnToTitle() {
@@ -383,8 +428,9 @@ final class GameViewModel {
     }
 
     private func updateARInteraction() {
-        let enabled = isReady && isGameScreenActive && isSceneActive && phase == .investigation && !isShowingEvidence
+        let enabled = isReady && isGameScreenActive && isSceneActive && isExploringInvestigation && !isShowingEvidence
             && !evidenceSheetIsActive && !isShowingRelocationConfirmation
+            && !isPhaseScreenVisible && phasePresentation == nil
         arRuntime.setInteractionEnabled(enabled)
         arRuntime.setPhotographing(enabled && arMode == .photographing)
     }

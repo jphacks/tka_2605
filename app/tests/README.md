@@ -26,7 +26,12 @@ to the runner, for example `--filter GameManagerTests.testUnconfirmedCollection`
 The harness also copies the current `app/Data/*.json` as test resources. The
 catalog tests decode the updated schema, resolve its references, exercise all
 three investigation stages, and verify photo/state preservation across a stage
-advance and reconnect. There are 53 tests in total.
+advance and reconnect. There are 66 tests in total.
+
+Story playback tests cover host-only dialogue and full-text reveal, stale taps,
+explicit progression after both players collect a stage, selected-person
+testimony, the choice to present evidence or hear another person, result playback,
+and evidence-sheet dismissal with AR runtime and photo retention.
 
 The production GameViewModel and EvidenceSearchAssistance policy are also
 compiled, with a fake AR runtime and an injected monotonic clock. These tests

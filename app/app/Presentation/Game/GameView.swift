@@ -8,7 +8,8 @@ struct GameView: View {
         GeometryReader { geometry in
             let photographing = viewModel.arMode == .photographing
             let aspectRatio: CGFloat = photographing ? 1 : 9.0 / 16.0
-            let reservedHeight: CGFloat = photographing ? 232 : (viewModel.shouldShowRelocationSuggestion ? 250 : 198)
+            let progressHeight: CGFloat = viewModel.isInvestigationComplete ? 58 : 0
+            let reservedHeight: CGFloat = photographing ? 232 : (viewModel.shouldShowRelocationSuggestion ? 250 : 198) + progressHeight
             let availableHeight = max(1, geometry.size.height - reservedHeight)
             let viewportWidth = min(geometry.size.width - 32, availableHeight * aspectRatio)
 
@@ -193,6 +194,23 @@ struct GameView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .controlSize(.large)
+
+                if viewModel.isInvestigationComplete {
+                    if viewModel.isHost {
+                        Button(action: viewModel.advanceInvestigation) {
+                            Label("ストーリー進展", systemImage: "book.pages")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .disabled(!viewModel.canAdvanceInvestigation)
+                    } else {
+                        Text("証拠が揃いました。ホストのストーリー進展を待っています。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
 
                 if viewModel.shouldShowRelocationSuggestion {
                     Button(action: viewModel.suggestRelocation) {
