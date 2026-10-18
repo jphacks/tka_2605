@@ -9,14 +9,47 @@ import SwiftUI
 
 @Observable
 class EpisodeManager {
+    static let shared = EpisodeManager()
+    
+    private init() {}
+    
     private(set) var episode: Episode? = nil
     private(set) var data: GameData? = nil
-    private(set) var resources: [Evidence: UIImage] = [:]
+    private(set) var resources: [EvidenceKey: UIImage] = [:]
 
     init(episode: Episode? = nil, data: GameData? = nil) {
         self.episode = episode
         self.data = data
         self.resources = [:]
+    }
+
+    // 初期化前は送信できる状態がないためnilを返す。
+    func makeGameState() -> GameState? {
+        guard let episode, let data else { return nil }
+        return GameState(episode: episode, data: data)
+    }
+
+    func applyGameState(_ state: GameState) {
+        // 別のエピソードやゲームの画像を引き継がない。
+        if episode?.id != state.episode.id || data?.id != state.data.id {
+            resources.removeAll()
+        }
+        episode = state.episode
+        data = state.data
+    }
+
+    func photo(for key: EvidenceKey) -> UIImage? {
+        resources[key]
+    }
+
+    func savePhoto(_ image: UIImage, for key: EvidenceKey) {
+        resources[key] = image
+    }
+
+    func clearGame() {
+        episode = nil
+        data = nil
+        resources.removeAll()
     }
 
     func getAllEpisode() -> [Episode] {
@@ -29,12 +62,15 @@ class EpisodeManager {
     func initFromEpisodeID(id: Int) {
         // apiより取得
         guard let episodeData = EpisodeDataAPI.get(id: id) else { return }
+        resources.removeAll()
+        
+        self.episode = Episode(data: episodeData)
 
         self.data = GameData.init(
             personalEvidences: episodeData.personalEvidences.map {
                 Evidence(data: EvidenceDataAPI.getPersonalEvidence(id: $0)!)
             },
-            physicalEvidences:episodeData.personalEvidences.map {
+            physicalEvidences: episodeData.physicalEvidences.map {
                 Evidence(data: EvidenceDataAPI.getPhysicalEvidence(id: $0)!)
             },
             persons: episodeData.persons.map {

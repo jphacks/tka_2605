@@ -10,13 +10,14 @@ struct EpisodeData: Codable, Hashable, Identifiable {
     var id: Int
     var name: String
     var description: String
+    var isActive: Bool
     var stories: [Int]
     var personalEvidences: [Int]
     var physicalEvidences: [Int]
     var persons: [Int]
-    var keyPersonalEvidenceID: Int
-    var keyPhysicalEvidenceID: Int
-    var keyPersonID: Int
+    var keyPersonalEvidenceID: Int?
+    var keyPhysicalEvidenceID: Int?
+    var keyPersonID: Int?
     var previewResourceName: String
 }
 

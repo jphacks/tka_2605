@@ -18,39 +18,39 @@
     {
         "id": 1,
         "tag": "investigation_phase",
-        "personalEvidences": [0, 1],
-        "physicalEvidences": [0, 1],
+        "personalEvidences": [1, 5],
+        "physicalEvidences": [2, 5],
         "turn": [
             {
                 "personID": 0,
                 "resourceName": "story_03",
-                "statement": "調査を開始する。"
+                "statement": "調査を開始する。現場となった卿の私室。"
             }
         ]
     },
     {
         "id": 2,
         "tag": "investigation_phase",
-        "personalEvidences": [2, 3],
-        "physicalEvidences": [2, 3],
+        "personalEvidences": [3, 4],
+        "physicalEvidences": [0, 4],
         "turn": [
             {
                 "personID": 0,
                 "resourceName": "story_04",
-                "statement": "調査が進展する。"
+                "statement": "調査が進展する。館の資料室。"
             }
         ]
     },
     {
         "id": 3,
-        "personalEvidences": [4, 5],
-        "physicalEvidences": [4, 5],
+        "personalEvidences": [0, 2],
+        "physicalEvidences": [1, 3],
         "tag": "investigation_phase",
         "turn": [
             {
                 "personID": 0,
                 "resourceName": "story_05",
-                "statement": "さらに調査が進展する。"
+                "statement": "さらに調査が進展する。卿の書斎。"
             }
         ]
     },
