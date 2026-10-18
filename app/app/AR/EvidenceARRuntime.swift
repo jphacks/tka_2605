@@ -108,6 +108,7 @@ final class EvidenceARRuntime: NSObject {
                     loadModel(evidence: evidence, key: key)
                 }
                 modifyInput {
+                    $0.relocationKeys.formIntersection(requestedKeys)
                     $0.surfaceRevision &+= 1
                     $0.processedSurfaceRevision = -1
                     $0.placementElapsed = 1
@@ -194,6 +195,23 @@ final class EvidenceARRuntime: NSObject {
         captureError = nil
         modifyInput { $0.photographing = enabled }
         updateStatus()
+    }
+
+    /// Submit a local ECS command. Photos, collected flags, session tracking and
+    /// recognized planes are retained; only requested uncollected placements reset.
+    @discardableResult
+    func relocateUnacquiredEvidence(keys: Set<EvidenceKey>) -> Bool {
+        guard !isCapturing,
+              let input = inputEntity.components[EvidenceARInputComponent.self],
+              input.interactionEnabled, !input.photographing else { return false }
+        let targets = keys.filter { requestedEvidences[$0]?.isCollected == false }
+        guard !targets.isEmpty else { return false }
+        invalidateCapture()
+        clearSelection()
+        captureError = nil
+        modifyInput { $0.relocationKeys.formUnion(targets) }
+        updateStatus()
+        return true
     }
 
     func capturePhoto(completion: @escaping (EvidenceKey, UIImage) -> Void) {

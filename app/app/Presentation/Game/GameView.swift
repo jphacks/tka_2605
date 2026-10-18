@@ -1,13 +1,14 @@
 import SwiftUI
 
 struct GameView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel = GameViewModel()
 
     var body: some View {
         GeometryReader { geometry in
             let photographing = viewModel.arMode == .photographing
             let aspectRatio: CGFloat = photographing ? 1 : 9.0 / 16.0
-            let reservedHeight: CGFloat = photographing ? 232 : 198
+            let reservedHeight: CGFloat = photographing ? 232 : (viewModel.shouldShowRelocationSuggestion ? 250 : 198)
             let availableHeight = max(1, geometry.size.height - reservedHeight)
             let viewportWidth = min(geometry.size.width - 32, availableHeight * aspectRatio)
 
@@ -53,7 +54,8 @@ struct GameView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .disabled(!viewModel.isReady)
+            .disabled(!viewModel.isReady || viewModel.isShowingRelocationConfirmation)
+            .accessibilityHidden(viewModel.isShowingRelocationConfirmation)
             .overlay {
                 if !viewModel.isReady {
                     GameConnectionOverlay(message: viewModel.connectionMessage)
@@ -63,6 +65,14 @@ struct GameView: View {
         .background(Color.black.ignoresSafeArea())
         .foregroundStyle(.white)
         .preferredColorScheme(.dark)
+        .overlay {
+            if viewModel.isShowingRelocationConfirmation {
+                EvidenceRelocationConfirmationView(
+                    onCancel: viewModel.cancelRelocation,
+                    onRelocate: viewModel.confirmRelocation
+                )
+            }
+        }
         .sheet(
             isPresented: $viewModel.isShowingEvidence,
             onDismiss: viewModel.evidenceSheetDidDismiss
@@ -80,8 +90,14 @@ struct GameView: View {
         .onChange(of: viewModel.synchronization) { _, _ in
             viewModel.synchronize()
         }
+        .onAppear {
+            viewModel.gameScreenDidAppear(isSceneActive: scenePhase == .active)
+        }
         .task {
-            viewModel.synchronize()
+            await viewModel.runSearchAssistanceTimer()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            viewModel.sceneActivityDidChange(isActive: phase == .active)
         }
         .onDisappear {
             viewModel.stopInteraction()
@@ -177,6 +193,15 @@ struct GameView: View {
                     .buttonStyle(.borderedProminent)
                 }
                 .controlSize(.large)
+
+                if viewModel.shouldShowRelocationSuggestion {
+                    Button(action: viewModel.suggestRelocation) {
+                        Label("証拠が見つからない？ 再設置する", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.subheadline)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
         }
     }

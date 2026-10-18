@@ -23,8 +23,27 @@ import simd
         for name in resources.sorted() {
             let url = root.appendingPathComponent("Sources/\(name)")
             let asset = try await loader.load(url: url)
-            try require(abs(max(asset.size.x, max(asset.size.y, asset.size.z)) - 0.20) < 0.0001,
-                        "\(name): longest dimension must be 20cm")
+            // Directional regressions: matching capture/render bounds alone did
+            // not catch a sheet standing on edge or a book showing its pages.
+            if asset.placementStyle == .surfaceAligned {
+                try require(asset.size.z < min(asset.size.x, asset.size.y) * 0.1,
+                            "\(name): textured sheet must lie in XY, facing +Z")
+            }
+            if name == "book.usdz" {
+                try require(asset.size.y > asset.size.x && asset.size.x > asset.size.z,
+                            "Book must stand upright with its broad cover facing +Z")
+            }
+            if name == "standLight.usdz" {
+                try require(asset.size.y > asset.size.x && asset.size.y > asset.size.z,
+                            "Stand light must stand along +Y")
+            }
+            if name == "person.usdz" {
+                try require(asset.size.z < min(asset.size.x, asset.size.y) * 0.2,
+                            "Person icon must stand upright with its face along +Z")
+            }
+            let expectedDimension: Float = name == "footprints.usdz" ? 5.0 * 2.0 / 3.0 : 0.20
+            try require(abs(max(asset.size.x, max(asset.size.y, asset.size.z)) - expectedDimension) < 0.0001,
+                        "\(name): longest dimension must be \(expectedDimension)m")
             var samples = 0
             var lower = SIMD3<Float>(repeating: .infinity)
             var upper = SIMD3<Float>(repeating: -.infinity)
@@ -69,7 +88,7 @@ import simd
             asset.entity.isEnabled = false
             let cached = try await loader.load(url: url)
             try require(cached.entity !== asset.entity && cached.entity.isEnabled, "\(name): cache returned shared entity")
-            print("PASS \(name): bounds, 20cm scale, \(samples) surface samples, independent cache clone")
+            print("PASS \(name): bounds, \(expectedDimension)m scale, \(samples) surface samples, independent cache clone")
         }
         do {
             _ = try await loader.load(resourceName: "missing-evidence.usdz")

@@ -6,18 +6,39 @@ nonisolated struct EvidenceAssetConfiguration: Sendable {
     /// Imported assets use different authoring scales. Keep investigation props
     /// approachable; individual assets can override their size and pose here.
     var maximumDimension: Float = 0.20
-    var rotation = simd_quatf(angle: 0, axis: SIMD3<Float>(1, 0, 0))
+    var placementStyle: EvidencePlacementStyle = .surfaceAligned
+    /// Axes in the complete imported hierarchy, INCLUDING RealityKit's root
+    /// conversion. Normalize once to +Y up / +Z visible front.
+    var sourceUp = SIMD3<Float>(0, 1, 0)
+    var sourceFront = SIMD3<Float>(0, 0, 1)
+
+    var rotation: simd_quatf {
+        let up = simd_normalize(sourceUp)
+        let front = simd_normalize(sourceFront - simd_dot(sourceFront, up) * up)
+        let right = simd_normalize(simd_cross(up, front))
+        return simd_quatf(simd_float3x3(columns: (right, up, front)).transpose)
+    }
 
     static func configuration(resourceName: String) -> Self {
         var result = Self()
         switch URL(fileURLWithPath: resourceName).lastPathComponent.lowercased() {
-        case "book.usdz", "chest.usdz", "window.usdz":
-            // These Z-up assets stand against vertical surfaces. The evidence
-            // root uses Y for upright and +Z for the camera-facing plane normal.
-            result.rotation = simd_quatf(angle: -.pi / 2, axis: SIMD3(1, 0, 0))
+        case "book.usdz":
+            result.placementStyle = .upright
+            result.sourceFront = SIMD3(1, 0, 0) // The cover, rather than the page edges.
+        case "chest.usdz", "window.usdz", "person.usdz", "standlight.usdz":
+            result.placementStyle = .upright
+        case "blead.usdz", "b1_2.usdz", "documents.usdz", "letter.usdz":
+            result.sourceUp = SIMD3(0, 0, -1)
+            result.sourceFront = SIMD3(0, -1, 0) // Textured face, not the blank back.
+        case "footprints.usdz":
+            result.maximumDimension = 5.0 * 2.0 / 3.0
+            result.sourceUp = SIMD3(0, 0, -1)
+            result.sourceFront = SIMD3(0, 1, 0)
+        case "damage.usdz":
+            // This asset's updated hierarchy already contains its axis conversion.
+            result.sourceUp = SIMD3(0, 0, 1)
+            result.sourceFront = SIMD3(0, -1, 0)
         default:
-            // Sheets already lie in XY; the lamp/person stand along +Z on a
-            // horizontal surface. Both match the evidence root's +Z normal.
             break
         }
         return result
@@ -30,6 +51,7 @@ final class EvidenceAssetLoader {
         let entity: Entity
         let size: SIMD3<Float>
         let captureMesh: EvidenceCaptureMesh
+        let placementStyle: EvidencePlacementStyle
     }
 
     enum LoadError: LocalizedError {
@@ -64,7 +86,8 @@ final class EvidenceAssetLoader {
 
     func load(url: URL) async throws -> Asset {
         if let cached = cache[url] {
-            return Asset(entity: cached.entity.clone(recursive: true), size: cached.size, captureMesh: cached.captureMesh)
+            return Asset(entity: cached.entity.clone(recursive: true), size: cached.size,
+                         captureMesh: cached.captureMesh, placementStyle: cached.placementStyle)
         }
         let imported = try await Entity(contentsOf: url)
         try Task.checkCancellation()
@@ -110,9 +133,11 @@ final class EvidenceAssetLoader {
         oriented.addChild(body)
         let normalized = Entity()
         normalized.addChild(oriented)
-        let asset = Asset(entity: normalized, size: prepared.size, captureMesh: prepared.mesh)
+        let asset = Asset(entity: normalized, size: prepared.size, captureMesh: prepared.mesh,
+                          placementStyle: configuration.placementStyle)
         cache[url] = asset
-        return Asset(entity: normalized.clone(recursive: true), size: asset.size, captureMesh: asset.captureMesh)
+        return Asset(entity: normalized.clone(recursive: true), size: asset.size,
+                     captureMesh: asset.captureMesh, placementStyle: asset.placementStyle)
     }
 
     private func copyVisualHierarchy(_ source: Entity) -> Entity {

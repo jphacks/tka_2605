@@ -21,6 +21,20 @@ nonisolated final class EvidencePlacementSystem: System {
             .sorted { ($0.components[EvidenceComponent.self]?.key.id ?? 0) < ($1.components[EvidenceComponent.self]?.key.id ?? 0) }
         var centers: [SIMD3<Float>] = []
 
+        // Requests may arrive before an async model load finishes. Keep those
+        // keys queued, and recheck collection after the latest state sync.
+        for entity in evidences {
+            guard let evidence = entity.components[EvidenceComponent.self],
+                  input.relocationKeys.remove(evidence.key) != nil else { continue }
+            guard !evidence.isCollected else { continue }
+            var placement = EvidencePlacementComponent()
+            placement.prefersNearbySurface = true
+            entity.components.set(placement)
+            entity.findEntity(named: EvidenceModelFactory.visualName)?.isEnabled = false
+            input.processedSurfaceRevision = -1
+            input.placementElapsed = 1
+        }
+
         // Plane refinement/removal can invalidate an old placement. Validate immediately,
         // including collected evidence, before selection/capture can run this frame.
         for entity in evidences {
@@ -31,7 +45,8 @@ nonisolated final class EvidencePlacementSystem: System {
                let surface = surfacesByID[anchorID],
                surface.classification == evidence.requiredSurface,
                evidence.requiredSurface != nil,
-               EvidenceARGeometry.fits(evidence.model, at: placement.planePosition, sign: placement.normalSign, in: surface) {
+               EvidenceARGeometry.fits(evidence.model, at: placement.planePosition, sign: placement.normalSign,
+                                       in: surface, heading: placement.surfaceHeading) {
                 let transform = EvidenceARGeometry.worldTransform(placement, model: evidence.model, surface: surface)
                 let center = SIMD3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
                 placement.isValid = centers.allSatisfy { simd_distance($0, center) >= 1 }
@@ -60,20 +75,31 @@ nonisolated final class EvidencePlacementSystem: System {
                 else { continue }
 
                 var didPlace = false
-                for surface in surfaces where surface.classification == requiredSurface {
+                var matchingSurfaces = surfaces.filter { $0.classification == requiredSurface }
+                if entity.components[EvidencePlacementComponent.self]?.prefersNearbySurface == true {
+                    let camera = input.cameraTransform.columns.3
+                    matchingSurfaces.sort {
+                        EvidenceARGeometry.surfaceDistanceSquared(camera: camera, surface: $0)
+                            < EvidenceARGeometry.surfaceDistanceSquared(camera: camera, surface: $1)
+                    }
+                }
+                for surface in matchingSurfaces {
                     let localCamera = surface.transform.inverse * input.cameraTransform.columns.3
-                    let sign: Float = localCamera.y >= 0 ? 1 : -1
+                    let sign = EvidencePlaneOrientation.normalSign(planeTransform: surface.transform, cameraHeight: localCamera.y)
                     for point in EvidenceARGeometry.candidates(
                         in: surface,
                         model: evidence.model,
                         sign: sign,
                         near: SIMD2(localCamera.x, localCamera.z)
                     ) {
-                        guard EvidenceARGeometry.fits(evidence.model, at: point, sign: sign, in: surface) else { continue }
+                        let heading = SIMD2(localCamera.x, localCamera.z) - point
+                        guard EvidenceARGeometry.fits(evidence.model, at: point, sign: sign, in: surface, heading: heading)
+                        else { continue }
                         let placement = EvidencePlacementComponent(
                             anchorID: surface.anchorID,
                             planePosition: point,
                             normalSign: sign,
+                            surfaceHeading: heading,
                             isValid: true
                         )
                         let transform = EvidenceARGeometry.worldTransform(placement, model: evidence.model, surface: surface)
@@ -173,6 +199,22 @@ nonisolated final class EvidenceCaptureSystem: System {
 
 @MainActor
 enum EvidenceARGeometry {
+    static func surfaceDistanceSquared(camera: SIMD4<Float>, surface: RecognizedSurfaceComponent) -> Float {
+        guard surface.boundary.count >= 3 else { return .infinity }
+        let local = surface.transform.inverse * camera
+        let point = SIMD2(local.x, local.z)
+        if contains(point, polygon: surface.boundary) { return local.y * local.y }
+        var nearest = Float.infinity
+        for index in surface.boundary.indices {
+            let start = surface.boundary[index]
+            let edge = surface.boundary[(index + 1) % surface.boundary.count] - start
+            let length = simd_length_squared(edge)
+            let fraction = length > 0 ? min(1, max(0, simd_dot(point - start, edge) / length)) : 0
+            nearest = min(nearest, simd_distance_squared(point, start + fraction * edge))
+        }
+        return nearest + local.y * local.y
+    }
+
     static func hitDistance(_ entity: Entity, origin: SIMD3<Float>, direction: SIMD3<Float>) -> Float? {
         guard entity.components[EvidencePlacementComponent.self]?.isValid == true,
               let model = entity.components[EvidenceComponent.self]?.model else { return nil }
@@ -208,13 +250,14 @@ enum EvidenceARGeometry {
     ) -> simd_float4x4 {
         let rotation = EvidencePlaneOrientation.localRotation(
             planeTransform: surface.transform,
-            normalSign: placement.normalSign
+            normalSign: placement.normalSign,
+            style: model.placementStyle,
+            heading: placement.surfaceHeading
         )
         // Lift the body slightly off the recognized plane to avoid z-fighting.
-        let half = model.size / 2
-        let normalExtent = abs(model.orientation.act(SIMD3(half.x, 0, 0)).z)
-            + abs(model.orientation.act(SIMD3(0, half.y, 0)).z)
-            + abs(model.orientation.act(SIMD3(0, 0, half.z)).z)
+        let normalExtent = EvidencePlaneOrientation.normalExtent(
+            size: model.size, modelOrientation: model.orientation, localRotation: rotation
+        )
         let offset = normalExtent + 0.002
         let local = Transform(
             rotation: rotation,
@@ -227,10 +270,12 @@ enum EvidenceARGeometry {
         _ model: EvidenceModelConfiguration,
         at position: SIMD2<Float>,
         sign: Float,
-        in surface: RecognizedSurfaceComponent
+        in surface: RecognizedSurfaceComponent,
+        heading: SIMD2<Float>? = nil
     ) -> Bool {
         guard surface.boundary.count >= 3 else { return false }
-        let rotation = EvidencePlaneOrientation.localRotation(planeTransform: surface.transform, normalSign: sign)
+        let rotation = EvidencePlaneOrientation.localRotation(planeTransform: surface.transform, normalSign: sign,
+                                                              style: model.placementStyle, heading: heading)
         let half = model.size / 2
         var corners: [SIMD2<Float>] = []
         for x: Float in [-half.x, half.x] {
@@ -274,7 +319,10 @@ enum EvidenceARGeometry {
         let upper = surface.boundary.reduce(first) { simd_max($0, $1) }
         guard lower.x.isFinite, lower.y.isFinite, upper.x.isFinite, upper.y.isFinite else { return [] }
         let half = model.size / 2
-        let rotation = EvidencePlaneOrientation.localRotation(planeTransform: surface.transform, normalSign: sign)
+        let rotation = EvidencePlaneOrientation.localRotation(
+            planeTransform: surface.transform, normalSign: sign, style: model.placementStyle,
+            heading: camera - (lower + upper) / 2
+        )
         var footprintExtent = SIMD2<Float>.zero
         for axis in [SIMD3(half.x, 0, 0), SIMD3(0, half.y, 0), SIMD3(0, 0, half.z)] {
             let rotated = rotation.act(model.orientation.act(axis))

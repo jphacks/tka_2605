@@ -32,6 +32,7 @@ final class GameViewModel {
     var selectedEvidenceID: Int?
     private(set) var isConfirmingPerson = false
     private(set) var isShowingARIntroduction = false
+    private(set) var isShowingRelocationConfirmation = false
 
     private var currentGameID: UUID?
     private var hasShownARIntroduction = false
@@ -40,15 +41,22 @@ final class GameViewModel {
     private var previousPhase: GamePhase?
     private var evidenceSheetIsActive = false
     private var activeCaptureID: UUID?
+    private var searchAssistance = EvidenceSearchAssistance()
+    private var relocationConfirmationScope: EvidenceSearchAssistance.Scope?
+    private var isGameScreenActive = false
+    private var isSceneActive = true
+    private let currentTime: () -> TimeInterval
 
     init(
         game: GameManager? = nil,
         episode: EpisodeManager? = nil,
-        arRuntime: EvidenceARRuntime? = nil
+        arRuntime: EvidenceARRuntime? = nil,
+        currentTime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
         self.game = game ?? .shared
         self.episode = episode ?? .shared
         self.arRuntime = arRuntime ?? EvidenceARRuntime()
+        self.currentTime = currentTime
     }
 
     var synchronization: GameViewSynchronization {
@@ -80,6 +88,28 @@ final class GameViewModel {
 
     var photographedEvidences: [Evidence] {
         myEvidences.filter { photo(for: $0) != nil }
+    }
+
+    private var relocationScope: EvidenceSearchAssistance.Scope? {
+        guard phase == .investigation, let state = game.state else { return nil }
+        return .init(gameID: state.gameID, investigationIndex: state.investigationIndex, kind: game.myKind)
+    }
+
+    private var unacquiredEvidenceKeys: Set<EvidenceKey> {
+        Set(game.currentInvestigationEvidences.filter {
+            !$0.isCollected && photo(for: $0) == nil
+        }.map { EvidenceKey(kind: game.myKind, id: $0.id) })
+    }
+
+    private var canOfferRelocation: Bool {
+        isGameScreenActive && isSceneActive && isReady && phase == .investigation
+            && arMode == .exploring && arRuntime.hasCameraFeed && !arRuntime.isCapturing
+            && !isShowingEvidence && !evidenceSheetIsActive && !isShowingARIntroduction
+            && !isPhaseScreenVisible && phasePresentation == nil && !unacquiredEvidenceKeys.isEmpty
+    }
+
+    var shouldShowRelocationSuggestion: Bool {
+        canOfferRelocation && !isShowingRelocationConfirmation && searchAssistance.shouldSuggest
     }
 
     var persons: [Person] {
@@ -182,19 +212,28 @@ final class GameViewModel {
 
         updateARInteraction()
         showARIntroductionIfNeeded()
+        if relocationConfirmationScope != relocationScope || !canOfferRelocation {
+            isShowingRelocationConfirmation = false
+            relocationConfirmationScope = nil
+            updateARInteraction()
+        }
+        updateSearchAssistance()
     }
 
     func phaseScreenDidAppear() {
         isPhaseScreenVisible = true
+        updateSearchAssistance()
     }
 
     func phaseScreenDidDismiss() {
         isPhaseScreenVisible = false
         showARIntroductionIfNeeded()
+        updateSearchAssistance()
     }
 
     func dismissARIntroduction() {
         isShowingARIntroduction = false
+        updateSearchAssistance()
     }
 
     private func showARIntroductionIfNeeded() {
@@ -212,17 +251,19 @@ final class GameViewModel {
     }
 
     func beginPhotography() {
-        guard isReady, phase == .investigation, !isShowingEvidence else { return }
+        guard isReady, phase == .investigation, !isShowingEvidence, !isShowingRelocationConfirmation else { return }
         dismissARIntroduction()
         arMode = .photographing
         activeCaptureID = nil
         updateARInteraction()
+        updateSearchAssistance()
     }
 
     func endPhotography() {
         activeCaptureID = nil
         arMode = .exploring
         arRuntime.setPhotographing(false)
+        updateSearchAssistance()
     }
 
     func capturePhoto() {
@@ -245,11 +286,12 @@ final class GameViewModel {
     }
 
     func showEvidence() {
-        guard isReady, phase == .investigation, arMode == .exploring else { return }
+        guard isReady, phase == .investigation, arMode == .exploring, !isShowingRelocationConfirmation else { return }
         dismissARIntroduction()
         evidenceSheetIsActive = true
         isShowingEvidence = true
         updateARInteraction()
+        updateSearchAssistance()
     }
 
     func evidenceSheetDidDismiss() {
@@ -276,14 +318,73 @@ final class GameViewModel {
     }
 
     func stopInteraction() {
+        isGameScreenActive = false
+        isShowingRelocationConfirmation = false
+        relocationConfirmationScope = nil
         dismissARIntroduction()
         endPhotography()
         arRuntime.setInteractionEnabled(false)
+        updateSearchAssistance()
+    }
+
+    func gameScreenDidAppear(isSceneActive: Bool) {
+        isGameScreenActive = true
+        self.isSceneActive = isSceneActive
+        synchronize()
+    }
+
+    func sceneActivityDidChange(isActive: Bool) {
+        isSceneActive = isActive
+        if !isActive { cancelRelocation() }
+        updateARInteraction()
+        updateSearchAssistance()
+    }
+
+    func runSearchAssistanceTimer() async {
+        while !Task.isCancelled {
+            updateSearchAssistance()
+            do { try await Task.sleep(for: .milliseconds(500)) }
+            catch { return }
+        }
+    }
+
+    func updateSearchAssistance() {
+        searchAssistance.synchronize(scope: relocationScope, remaining: unacquiredEvidenceKeys)
+        searchAssistance.sample(at: currentTime(), isActive: canOfferRelocation && !isShowingRelocationConfirmation)
+    }
+
+    func suggestRelocation() {
+        guard shouldShowRelocationSuggestion else { return }
+        relocationConfirmationScope = relocationScope
+        isShowingRelocationConfirmation = true
+        updateARInteraction()
+        updateSearchAssistance()
+    }
+
+    func cancelRelocation() {
+        isShowingRelocationConfirmation = false
+        relocationConfirmationScope = nil
+        updateARInteraction()
+        updateSearchAssistance()
+    }
+
+    func confirmRelocation() {
+        guard isShowingRelocationConfirmation, canOfferRelocation,
+              relocationConfirmationScope == relocationScope else {
+            cancelRelocation()
+            return
+        }
+        let keys = unacquiredEvidenceKeys
+        isShowingRelocationConfirmation = false
+        relocationConfirmationScope = nil
+        updateARInteraction()
+        if arRuntime.relocateUnacquiredEvidence(keys: keys) { searchAssistance.restart() }
+        updateSearchAssistance()
     }
 
     private func updateARInteraction() {
-        let enabled = isReady && phase == .investigation && !isShowingEvidence
-            && !evidenceSheetIsActive
+        let enabled = isReady && isGameScreenActive && isSceneActive && phase == .investigation && !isShowingEvidence
+            && !evidenceSheetIsActive && !isShowingRelocationConfirmation
         arRuntime.setInteractionEnabled(enabled)
         arRuntime.setPhotographing(enabled && arMode == .photographing)
     }

@@ -18,6 +18,89 @@ final class EvidenceOrientationTests: XCTestCase {
         verifyOrientations(tilts: [0, .pi], horizontal: true)
     }
 
+    func testHorizontalPropsStayUprightAndFacePlacementCameraRegardlessOfAnchorYaw() {
+        verifyCameraHeadings(style: .upright)
+    }
+
+    func testHorizontalSheetsFaceUpAndTextTopPointsAwayFromPlacementCamera() {
+        verifyCameraHeadings(style: .surfaceAligned)
+    }
+
+    func testCameraBelowTableDoesNotFlipObjectsOntoItsUnderside() {
+        for tilt in [Float(0), .pi] {
+            let planeRotation = simd_quatf(angle: tilt, axis: SIMD3(1, 0, 0))
+            let plane = simd_float4x4(planeRotation)
+            for cameraHeight in [Float(-1), 1] {
+                let sign = EvidencePlaneOrientation.normalSign(planeTransform: plane, cameraHeight: cameraHeight)
+                let rotation = EvidencePlaneOrientation.localRotation(
+                    planeTransform: plane, normalSign: sign, style: .upright, heading: SIMD2(0, 1)
+                )
+                let basis = simd_float3x3(planeRotation) * simd_float3x3(rotation)
+                assertVector(basis.columns.1, equals: worldUp, "Camera below table")
+            }
+        }
+    }
+
+    func testCameraDirectlyAbovePropUsesFiniteFallbackWithoutTipping() {
+        let rotation = EvidencePlaneOrientation.localRotation(
+            planeTransform: matrix_identity_float4x4, normalSign: 1, style: .upright, heading: .zero
+        )
+        let basis = simd_float3x3(rotation)
+        assertVector(basis.columns.1, equals: worldUp, "Directly above")
+        XCTAssertEqual(simd_determinant(basis), 1, accuracy: tolerance)
+    }
+
+    func testSupportOffsetKeepsUprightPropAndSheetAboveRecognizedPlane() {
+        let size = SIMD3<Float>(0.08, 0.20, 0.04)
+        for style in [EvidencePlacementStyle.upright, .surfaceAligned] {
+            let rotation = EvidencePlaneOrientation.localRotation(
+                planeTransform: matrix_identity_float4x4, normalSign: 1, style: style, heading: SIMD2(1, 1)
+            )
+            let extent = EvidencePlaneOrientation.normalExtent(
+                size: size, modelOrientation: simd_quatf(angle: 0, axis: worldUp), localRotation: rotation
+            )
+            var bottom = Float.infinity
+            for x in [-size.x / 2, size.x / 2] {
+                for y in [-size.y / 2, size.y / 2] {
+                    for z in [-size.z / 2, size.z / 2] {
+                        bottom = min(bottom, rotation.act(SIMD3(x, y, z)).y + extent + 0.002)
+                    }
+                }
+            }
+            XCTAssertEqual(bottom, 0.002, accuracy: tolerance)
+            XCTAssertEqual(extent, style == .upright ? size.y / 2 : size.z / 2, accuracy: tolerance)
+        }
+    }
+
+    private func verifyCameraHeadings(style: EvidencePlacementStyle) {
+        for tilt in [Float(0), 0.08, .pi] {
+            for yawIndex in 0..<12 {
+                let anchor = simd_quatf(angle: Float(yawIndex) * .pi / 6, axis: worldUp)
+                    * simd_quatf(angle: tilt, axis: SIMD3(1, 0, 0))
+                let plane = simd_float4x4(anchor)
+                let planeBasis = simd_float3x3(anchor)
+                let sign = EvidencePlaneOrientation.normalSign(planeTransform: plane, cameraHeight: 1)
+                let normal = planeBasis.columns.1 * sign
+                for cameraIndex in 0..<16 {
+                    let angle = Float(cameraIndex) * .pi / 8
+                    let camera = SIMD3<Float>(cos(angle), 1, sin(angle))
+                    let local = planeBasis.transpose * camera
+                    let heading = SIMD2(local.x, local.z)
+                    let rotation = EvidencePlaneOrientation.localRotation(
+                        planeTransform: plane, normalSign: sign, style: style, heading: heading
+                    )
+                    let basis = planeBasis * simd_float3x3(rotation)
+                    let towardCamera = simd_normalize(camera - simd_dot(camera, normal) * normal)
+                    assertVector(basis.columns.1, equals: style == .upright ? normal : -towardCamera,
+                                 "Model up / text top")
+                    assertVector(basis.columns.2, equals: style == .upright ? towardCamera : normal,
+                                 "Visible front")
+                    XCTAssertEqual(simd_determinant(basis), 1, accuracy: tolerance)
+                }
+            }
+        }
+    }
+
     private func verifyOrientations(tilts: [Float], horizontal: Bool) {
         for tilt in tilts {
             for yawIndex in 0..<12 {

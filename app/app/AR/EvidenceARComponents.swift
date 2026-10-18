@@ -16,31 +16,7 @@ nonisolated struct EvidenceModelConfiguration {
     var size: SIMD3<Float> = SIMD3(0.10, 0.10, 0.006)
     var orientation: simd_quatf = simd_quatf(angle: 0, axis: SIMD3(0, 0, 1))
     var captureMesh = EvidenceCaptureMesh.box(size: SIMD3(0.10, 0.10, 0.006))
-}
-
-/// Keep the label upright independently of ARKit's in-plane anchor axes. Flipping
-/// the visible face reverses the right axis, rather than turning the text upside down.
-nonisolated enum EvidencePlaneOrientation {
-    static func localRotation(planeTransform: simd_float4x4, normalSign: Float) -> simd_quatf {
-        let planeRotation = simd_float3x3(columns: (
-            SIMD3(planeTransform.columns.0.x, planeTransform.columns.0.y, planeTransform.columns.0.z),
-            SIMD3(planeTransform.columns.1.x, planeTransform.columns.1.y, planeTransform.columns.1.z),
-            SIMD3(planeTransform.columns.2.x, planeTransform.columns.2.y, planeTransform.columns.2.z)
-        ))
-        let front = simd_normalize(planeRotation.columns.1 * normalSign)
-        let worldUp = SIMD3<Float>(0, 1, 0)
-        var up = worldUp - simd_dot(worldUp, front) * front
-        if simd_length_squared(up) < 0.000001 {
-            // Gravity has no direction along a horizontal plane. Use its -Z tangent
-            // consistently on either face instead of normalizing a zero vector.
-            let tangent = -planeRotation.columns.2
-            up = tangent - simd_dot(tangent, front) * front
-        }
-        up = simd_normalize(up)
-        let right = simd_normalize(simd_cross(up, front))
-        let worldRotation = simd_float3x3(columns: (right, simd_cross(front, right), front))
-        return simd_quatf(planeRotation.transpose * worldRotation)
-    }
+    var placementStyle: EvidencePlacementStyle = .surfaceAligned
 }
 
 nonisolated enum EvidenceSurfaceClassification: String {
@@ -75,7 +51,9 @@ nonisolated struct EvidencePlacementComponent: Component {
     var anchorID: UUID?
     var planePosition: SIMD2<Float> = .zero
     var normalSign: Float = 1
+    var surfaceHeading: SIMD2<Float>?
     var isValid = false
+    var prefersNearbySurface = false
 }
 
 nonisolated struct EvidenceCaptureRequest {
@@ -97,6 +75,7 @@ nonisolated struct EvidenceARInputComponent: Component {
     var viewportSize = CGSize.zero
     var tapRay: (origin: SIMD3<Float>, direction: SIMD3<Float>)?
     var captureRequest: EvidenceCaptureRequest?
+    var relocationKeys: Set<EvidenceKey> = []
     var surfaceRevision = 0
     var processedSurfaceRevision = -1
     var placementElapsed: TimeInterval = 1
@@ -133,6 +112,7 @@ final class EvidenceModelFactory {
             let asset = try await assetLoader.load(resourceName: evidence.modelResourceName)
             configuration.size = asset.size
             configuration.captureMesh = asset.captureMesh
+            configuration.placementStyle = asset.placementStyle
             visual.addChild(asset.entity)
         }
         visual.orientation = configuration.orientation
