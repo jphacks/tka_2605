@@ -4,6 +4,10 @@ struct TitleView: View {
     @State var viewModel = TitleViewModel()
     @FocusState private var isNameFocused: Bool
 
+    private let ivory = Color(red: 0.98, green: 0.95, blue: 0.88)
+    private let gold = Color(red: 0.83, green: 0.67, blue: 0.40)
+    private let ink = Color(red: 0.06, green: 0.10, blue: 0.14)
+
     var body: some View {
         NavigationStack(path: viewModel.path) {
             entryScreen
@@ -24,23 +28,63 @@ struct TitleView: View {
     }
 
     private var entryScreen: some View {
-        VStack {
-            // The background and title artwork will be supplied separately.
-            Spacer(minLength: 48)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 28)
 
-            VStack(alignment: .leading, spacing: 12) {
+                    VStack(spacing: 20) {
+                        Image("logo")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 620)
+                            .accessibilityLabel("Twin探偵団")
+
+                        Text("ふたりの視点で、真相を解き明かせ。")
+                            .font(.system(.subheadline, design: .serif))
+                            .tracking(1.2)
+                            .foregroundStyle(ink.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.bottom, 36)
+
+                    Spacer(minLength: 36)
+
+                    entryForm
+                        .frame(maxWidth: 480)
+                }
+                .frame(maxWidth: 680)
+                .padding(.horizontal, 28)
+                .padding(.top, 24)
+                .padding(.bottom, isNameFocused ? 24 : 60)
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .background { titleBackground }
+        .preferredColorScheme(.light)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var entryForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
                 Text("プレイヤー名")
                     .font(.subheadline.weight(.medium))
+                    .foregroundStyle(ivory.opacity(0.9))
                     .padding(.leading, 8)
 
-                TextField("名前を入力してください", text: $viewModel.name)
+                TextField("プレイヤー名", text: $viewModel.name,
+                          prompt: Text("名前を入力してください").foregroundStyle(ivory.opacity(0.5)))
                     .font(.body)
+                    .foregroundStyle(ivory)
+                    .tint(gold)
                     .padding(.horizontal, 20)
                     .frame(minHeight: 56)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                    .background(ink.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
                     .overlay {
                         RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+                            .strokeBorder(isNameFocused ? gold : ivory.opacity(0.3), lineWidth: 1)
                     }
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -58,22 +102,43 @@ struct TitleView: View {
                         Image(systemName: "arrow.right")
                     }
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.black.opacity(viewModel.isActiveStartButton ? 0.35 : 0.85))
+                    .foregroundStyle(ink.opacity(viewModel.isActiveStartButton ? 0.4 : 1))
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: 66)
-                    .background(.white, in: Capsule())
-                    .overlay { Capsule().strokeBorder(.black.opacity(0.08), lineWidth: 1) }
-                    .shadow(color: .black.opacity(0.06), radius: 16, y: 6)
+                    .background {
+                        Capsule().fill(
+                            LinearGradient(colors: [ivory, Color(red: 0.89, green: 0.79, blue: 0.59)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing)
+                        )
+                    }
+                    .overlay { Capsule().strokeBorder(ivory.opacity(0.65), lineWidth: 1) }
+                    .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
                 }
                 .buttonStyle(.plain)
                 .disabled(viewModel.isActiveStartButton)
                 .padding(.top, 10)
-            }
-            .frame(maxWidth: 480)
-            .padding(.horizontal, 28)
-            .padding(.bottom, isNameFocused ? 24 : 68)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private var titleBackground: some View {
+        GeometryReader { geometry in
+            ZStack {
+                Image("blackrose_mansion")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .clipped()
+
+                LinearGradient(stops: [
+                    .init(color: ivory, location: 0),
+                    .init(color: ivory.opacity(0.96), location: 0.28),
+                    .init(color: ivory.opacity(0.7), location: 0.45),
+                    .init(color: ink.opacity(0.15), location: 0.66),
+                    .init(color: ink.opacity(0.9), location: 1)
+                ], startPoint: .top, endPoint: .bottom)
+            }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
     }
 }
