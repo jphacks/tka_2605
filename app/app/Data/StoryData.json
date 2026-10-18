@@ -18,6 +18,8 @@
     {
         "id": 1,
         "tag": "investigation_phase",
+        "personalEvidences": [0, 1],
+        "physicalEvidences": [0, 1],
         "turn": [
             {
                 "personID": 0,
@@ -28,43 +30,69 @@
     },
     {
         "id": 2,
-        "tag": "truth_uncovering_phase",
+        "tag": "investigation_phase",
+        "personalEvidences": [2, 3],
+        "physicalEvidences": [2, 3],
         "turn": [
             {
-                "personID": 1,
-                "resourceName": "story_04a",
-                "statement": "エレノアが指名され、自分ではないと抗弁する。"
-            },
-            {
-                "personID": 2,
-                "resourceName": "story_04b",
-                "statement": "グレイが指名され、自分ではないと抗弁する。"
-            },
-            {
-                "personID": 3,
-                "resourceName": "story_04c",
-                "statement": "ジェームズが指名され、自分ではないと抗弁する。"
+                "personID": 0,
+                "resourceName": "story_04",
+                "statement": "調査が進展する。"
             }
         ]
     },
     {
         "id": 3,
+        "personalEvidences": [4, 5],
+        "physicalEvidences": [4, 5],
+        "tag": "investigation_phase",
+        "turn": [
+            {
+                "personID": 0,
+                "resourceName": "story_05",
+                "statement": "さらに調査が進展する。"
+            }
+        ]
+    },
+    {
+        "id": 4,
+        "tag": "truth_uncovering_phase",
+        "turn": [
+            {
+                "personID": 1,
+                "resourceName": "story_06a",
+                "statement": "容疑者Aが指名され、自分ではないと抗弁する。"
+            },
+            {
+                "personID": 2,
+                "resourceName": "story_06b",
+                "statement": "容疑者Bが指名され、自分ではないと抗弁する。"
+            },
+            {
+                "personID": 3,
+                "resourceName": "story_06c",
+                "statement": "容疑者Cが指名され、自分ではないと抗弁する。"
+            }
+        ]
+    },
+    {
+        "id": 5,
         "tag": "result_phase",
         "turn": [
             {
                 "personID": 0,
                 "resourceName": "story_result_01",
-                "statement": "答え合わせ。"
+                "statement": "シナリオクリア！表示"
             },
             {
                 "personID": 0,
                 "resourceName": "story_result_02",
-                "statement": "答え合わせ。"
+                "statement": "シナリオのネタバレを提示_1"
             },
             {
                 "personID": 0,
                 "resourceName": "story_result_03",
-                "statement": "答え合わせ。"
+                "statement": "シナリオのネタバレを提示_2"
             }
         ]
     }
