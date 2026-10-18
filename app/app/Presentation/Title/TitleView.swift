@@ -69,54 +69,59 @@ struct TitleView: View {
 
     private var entryForm: some View {
         VStack(alignment: .leading, spacing: 12) {
-                Text("プレイヤー名")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(ivory.opacity(0.9))
-                    .padding(.leading, 8)
+            Text("プレイヤー名")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(ivory.opacity(0.9))
+                .padding(.leading, 8)
 
-                TextField("プレイヤー名", text: $viewModel.name,
-                          prompt: Text("名前を入力してください").foregroundStyle(ivory.opacity(0.5)))
-                    .font(.body)
-                    .foregroundStyle(ivory)
-                    .tint(gold)
-                    .padding(.horizontal, 20)
-                    .frame(minHeight: 56)
-                    .background(ink.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(isNameFocused ? gold : ivory.opacity(0.3), lineWidth: 1)
-                    }
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .submitLabel(.done)
-                    .focused($isNameFocused)
-                    .onSubmit { isNameFocused = false }
-                    .accessibilityLabel("プレイヤー名")
-
-                Button {
-                    isNameFocused = false
-                    viewModel.onClickStartButton()
-                } label: {
-                    HStack(spacing: 12) {
-                        Text("はじめる")
-                        Image(systemName: "arrow.right")
-                    }
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(ink.opacity(viewModel.isActiveStartButton ? 0.4 : 1))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: 66)
-                    .background {
-                        Capsule().fill(
-                            LinearGradient(colors: [ivory, Color(red: 0.89, green: 0.79, blue: 0.59)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
-                    }
-                    .overlay { Capsule().strokeBorder(ivory.opacity(0.65), lineWidth: 1) }
-                    .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
+            TextField("プレイヤー名", text: $viewModel.name,
+                      prompt: Text("名前を入力してください").foregroundStyle(ivory.opacity(0.5)))
+                .font(.body)
+                .foregroundStyle(ivory)
+                .tint(gold)
+                .padding(.horizontal, 20)
+                .frame(minHeight: 56)
+                .background(ink.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(isNameFocused ? gold : ivory.opacity(0.3), lineWidth: 1)
                 }
-                .buttonStyle(.plain)
-                .disabled(viewModel.isActiveStartButton)
-                .padding(.top, 10)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .focused($isNameFocused)
+                .onSubmit { isNameFocused = false }
+                .accessibilityLabel("プレイヤー名")
+
+            Button {
+                isNameFocused = false
+                viewModel.onClickStartButton()
+            } label: {
+                HStack(spacing: 12) {
+                    Text("はじめる")
+                    Image(systemName: "arrow.right")
+                }
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(ink.opacity(viewModel.isActiveStartButton ? 0.4 : 1))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 66)
+                .background {
+                    Capsule().fill(
+                        LinearGradient(colors: [ivory, Color(red: 0.89, green: 0.79, blue: 0.59)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                }
+                .overlay { Capsule().strokeBorder(ivory.opacity(0.65), lineWidth: 1) }
+                .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isActiveStartButton)
+            .padding(.top, 10)
+        }
+        .padding(20)
+        .background(ink.opacity(0.75), in: RoundedRectangle(cornerRadius: 26))
+        .overlay {
+            RoundedRectangle(cornerRadius: 26).strokeBorder(gold.opacity(0.25), lineWidth: 1)
         }
     }
 
