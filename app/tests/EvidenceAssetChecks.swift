@@ -90,6 +90,20 @@ import simd
             try require(cached.entity !== asset.entity && cached.entity.isEnabled, "\(name): cache returned shared entity")
             print("PASS \(name): bounds, \(expectedDimension)m scale, \(samples) surface samples, independent cache clone")
         }
+        // A failed first import must not poison the loader's cache. Runtime's
+        // relocation action now invokes the loader again for missing Entities.
+        let retryDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("tka-model-retry-\(UUID())")
+        try FileManager.default.createDirectory(at: retryDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: retryDirectory) }
+        let retryURL = retryDirectory.appendingPathComponent("book.usdz")
+        var firstAttemptFailed = false
+        do { _ = try await loader.load(url: retryURL) }
+        catch { firstAttemptFailed = true }
+        try require(firstAttemptFailed, "Unavailable model must fail its first import")
+        try FileManager.default.copyItem(at: root.appendingPathComponent("Sources/book.usdz"), to: retryURL)
+        let recovered = try await loader.load(url: retryURL)
+        try require(recovered.size.y > recovered.size.z, "Import must recover on the next attempt")
+        print("PASS failed initial import recovers on retry")
         do {
             _ = try await loader.load(resourceName: "missing-evidence.usdz")
             throw Failure(description: "Missing resource was accepted")

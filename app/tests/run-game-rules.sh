@@ -21,6 +21,9 @@ cp "$repo_dir/app/Logic/JsonLoader.swift" "$harness_dir/Sources/GameRules/JsonLo
 awk '/^@Observable/ { exit } { print }' \
     "$repo_dir/app/Manager/PeerManager.swift" > "$harness_dir/Sources/GameRules/GameMessage.swift"
 cp "$repo_dir/app/AR/EvidencePlaneOrientation.swift" "$harness_dir/Sources/GameRules/EvidencePlaneOrientation.swift"
+for source in EvidenceARComponents EvidenceARGeometry EvidenceCaptureMesh EvidencePlacementEngine; do
+    cp "$repo_dir/app/AR/$source.swift" "$harness_dir/Sources/GameRules/$source.swift"
+done
 cp "$repo_dir/tests/support/FakePeerManager.swift" "$harness_dir/Sources/GameRules/FakePeerManager.swift"
 cp "$repo_dir/tests/support/FakeEvidenceARRuntime.swift" "$harness_dir/Sources/GameRules/FakeEvidenceARRuntime.swift"
 cp "$repo_dir/app/Presentation/Game/GameViewModel.swift" "$harness_dir/Sources/GameRules/GameViewModel.swift"
@@ -29,6 +32,7 @@ cp "$repo_dir/tests/GameRulesTests.swift" "$repo_dir/tests/GameManagerTests.swif
     "$repo_dir/tests/GameFixtures.swift" "$repo_dir/tests/EvidenceOrientationTests.swift" \
     "$repo_dir/tests/EpisodeDataTests.swift" "$repo_dir/tests/StoryPlaybackTests.swift" \
     "$repo_dir/tests/EvidenceSearchAssistanceTests.swift" "$repo_dir/tests/GameSearchAssistanceTests.swift" \
+    "$repo_dir/tests/EvidencePlacementTests.swift" \
     "$harness_dir/Tests/GameRulesTests/"
 mkdir -p "$harness_dir/Tests/GameRulesTests/Resources"
 cp "$repo_dir"/app/Data/*.json "$harness_dir/Tests/GameRulesTests/Resources/"

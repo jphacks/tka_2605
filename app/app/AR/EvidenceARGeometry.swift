@@ -122,36 +122,61 @@ enum EvidenceARGeometry {
         let lower = surface.boundary.reduce(first) { simd_min($0, $1) }
         let upper = surface.boundary.reduce(first) { simd_max($0, $1) }
         guard lower.x.isFinite, lower.y.isFinite, upper.x.isFinite, upper.y.isFinite else { return [] }
-        let half = model.size / 2
-        let rotation = EvidencePlaneOrientation.localRotation(
-            planeTransform: surface.transform, normalSign: sign, style: model.placementStyle,
-            heading: camera - (lower + upper) / 2
-        )
-        var footprintExtent = SIMD2<Float>.zero
-        for axis in [SIMD3(half.x, 0, 0), SIMD3(0, half.y, 0), SIMD3(0, 0, half.z)] {
-            let rotated = rotation.act(model.orientation.act(axis))
-            footprintExtent += SIMD2(abs(rotated.x), abs(rotated.z))
+        func extent(at point: SIMD2<Float>) -> SIMD2<Float> {
+            let rotation = EvidencePlaneOrientation.localRotation(
+                planeTransform: surface.transform, normalSign: sign, style: model.placementStyle,
+                heading: camera - point
+            )
+            let half = model.size / 2
+            return [SIMD3(half.x, 0, 0), SIMD3(0, half.y, 0), SIMD3(0, 0, half.z)].reduce(.zero) {
+                let rotated = rotation.act(model.orientation.act($1))
+                return $0 + SIMD2(abs(rotated.x), abs(rotated.z))
+            }
         }
-        let innerLower = lower + footprintExtent
-        let innerUpper = upper - footprintExtent
-        guard innerLower.x <= innerUpper.x, innerLower.y <= innerUpper.y else { return [] }
-        var points: [SIMD2<Float>] = []
-        // Sample the entire detected polygon; never clamp its height or invent a larger plane.
-        // Include interior midlines and inset edges so a narrow but usable wall is
-        // not accidentally missed by a grid whose first sample lies on its boundary.
-        func coordinates(lower: Float, upper: Float, near camera: Float) -> [Float] {
+        func coordinates(lower: Float, upper: Float, near camera: Float, inset: Float) -> [Float] {
             var values = [lower, upper, (lower + upper) / 2, min(upper, max(lower, camera))]
-            for index in 0...Int(floor((upper - lower) / 0.25)) {
-                values.append(lower + Float(index) * 0.25)
+            if lower + inset <= upper - inset {
+                values += [lower + inset, upper - inset,
+                           min(upper - inset, max(lower + inset, camera))]
+            }
+            let count = min(40, max(1, Int(ceil((upper - lower) / 0.25))))
+            for index in 0...count {
+                values.append(lower + (upper - lower) * Float(index) / Float(count))
             }
             return Array(Set(values)).sorted()
         }
-        let xs = coordinates(lower: innerLower.x, upper: innerUpper.x, near: camera.x)
-        let ys = coordinates(lower: innerLower.y, upper: innerUpper.y, near: camera.y)
-        for x in xs {
-            for y in ys { points.append(SIMD2(x, y)) }
+        let estimated = extent(at: (lower + upper) / 2)
+        let xs = coordinates(lower: lower.x, upper: upper.x, near: camera.x, inset: estimated.x)
+        let ys = coordinates(lower: lower.y, upper: upper.y, near: camera.y, inset: estimated.y)
+        var seeds = xs.flatMap { x in ys.map { SIMD2(x, $0) } }
+        seeds += surface.boundary
+        for index in surface.boundary.indices {
+            seeds.append((surface.boundary[index] + surface.boundary[(index + 1) % surface.boundary.count]) / 2)
         }
-        return points.sorted { simd_distance_squared($0, camera) < simd_distance_squared($1, camera) }
+        var points: Set<SIMD2<Float>> = []
+        for seed in seeds {
+            var point = seed
+            // Heading depends on the final position. A single inset computed at
+            // the plane center can incorrectly reject a narrow but usable table.
+            for _ in 0..<8 {
+                let margin = extent(at: point)
+                let innerLower = lower + margin
+                let innerUpper = upper - margin
+                guard innerLower.x <= innerUpper.x, innerLower.y <= innerUpper.y else { break }
+                let adjusted = simd_min(innerUpper, simd_max(innerLower, point))
+                if simd_distance_squared(adjusted, point) < 0.0000000001 { break }
+                point = adjusted
+            }
+            if fits(model, at: point, sign: sign, in: surface, heading: camera - point) {
+                points.insert(point)
+            }
+        }
+        return points.sorted {
+            let first = simd_distance_squared($0, camera)
+            let second = simd_distance_squared($1, camera)
+            if first != second { return first < second }
+            return $0.x != $1.x ? $0.x < $1.x : $0.y < $1.y
+        }
     }
 
     private static func cross(_ a: SIMD2<Float>, _ b: SIMD2<Float>) -> Float { a.x * b.y - a.y * b.x }

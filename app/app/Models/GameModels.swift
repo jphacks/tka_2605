@@ -1,6 +1,6 @@
 import Foundation
 
-enum EvidenceKind: String, Codable, Hashable, CaseIterable {
+nonisolated enum EvidenceKind: String, Codable, Hashable, CaseIterable {
     case personal
     case physical
 
@@ -8,7 +8,7 @@ enum EvidenceKind: String, Codable, Hashable, CaseIterable {
 }
 
 /// 人的証拠と物的証拠では同じ数値IDを使うため、種別も識別子に含める。
-struct EvidenceKey: Codable, Hashable {
+nonisolated struct EvidenceKey: Codable, Hashable {
     let kind: EvidenceKind
     let id: Int
 }

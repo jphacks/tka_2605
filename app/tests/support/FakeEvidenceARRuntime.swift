@@ -14,6 +14,7 @@ final class EvidenceARRuntime {
     func configure(gameID: UUID, evidences: [Evidence], kind: EvidenceKind) {}
     func setInteractionEnabled(_ enabled: Bool) { interactionEnabled = enabled }
     func setPhotographing(_ enabled: Bool) {}
+    func setPhotographedEvidenceKeys(_ keys: Set<EvidenceKey>) {}
     func capturePhoto(completion: @escaping (EvidenceKey, UIImage) -> Void) {}
     func relocateUnacquiredEvidence(keys: Set<EvidenceKey>) -> Bool {
         relocationRequests.append(keys)

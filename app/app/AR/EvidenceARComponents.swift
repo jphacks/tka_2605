@@ -1,8 +1,13 @@
 import Foundation
 import RealityKit
-#if canImport(ARKit)
+#if os(iOS)
 import ARKit
 #endif
+
+nonisolated enum EvidenceEntityNames {
+    static let visual = "evidence-visual"
+    static let collected = "collected-indicator"
+}
 
 /// AR coordinates and the photos stay on this device. Only EvidenceKey crosses the network.
 nonisolated struct EvidenceComponent: Component {
@@ -41,7 +46,7 @@ nonisolated enum EvidenceSurfaceClassification: String {
         self.init(rawValue: dataValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
-    #if canImport(ARKit)
+    #if os(iOS)
     init?(_ classification: ARPlaneAnchor.Classification) {
         switch classification {
         case .wall: self = .wall

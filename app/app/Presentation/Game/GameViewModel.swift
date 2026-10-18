@@ -200,6 +200,7 @@ final class GameViewModel {
                 currentAttempt = state.ending.attempt
             }
         }
+        updatePhotographedEvidence()
 
         if previousPhase != phase {
             isConfirmingPerson = false
@@ -298,6 +299,7 @@ final class GameViewModel {
         activeCaptureID = nil
         arMode = .exploring
         arRuntime.setPhotographing(false)
+        updatePhotographedEvidence()
         updateSearchAssistance()
     }
 
@@ -433,5 +435,11 @@ final class GameViewModel {
             && !isPhaseScreenVisible && phasePresentation == nil
         arRuntime.setInteractionEnabled(enabled)
         arRuntime.setPhotographing(enabled && arMode == .photographing)
+    }
+
+    private func updatePhotographedEvidence() {
+        arRuntime.setPhotographedEvidenceKeys(Set(photographedEvidences.map {
+            EvidenceKey(kind: game.myKind, id: $0.id)
+        }))
     }
 }

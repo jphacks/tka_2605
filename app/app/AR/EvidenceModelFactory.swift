@@ -3,8 +3,8 @@ import UIKit
 
 @MainActor
 final class EvidenceModelFactory {
-    static let visualName = "evidence-visual"
-    static let collectedName = "collected-indicator"
+    static let visualName = EvidenceEntityNames.visual
+    static let collectedName = EvidenceEntityNames.collected
     private let assetLoader = EvidenceAssetLoader()
 
     func make(evidence: Evidence, key: EvidenceKey) async throws -> Entity {
