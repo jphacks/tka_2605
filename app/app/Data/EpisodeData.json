@@ -9,7 +9,7 @@
         "keyPersonalEvidenceID": 0,
         "keyPhysicalEvidenceID": 0,
         "keyPersonID": 3,
-        "previewResourceName": ""
+        "previewResourceName": "blackrose_mansion"
     },
     {
         "id": 1,
@@ -23,7 +23,7 @@
         "keyPersonalEvidenceID": null,
         "keyPhysicalEvidenceID": null,
         "keyPersonID": null,
-        "previewResourceName": ""
+        "previewResourceName": "jphackun"
     },
     {
         "id": 2,
@@ -37,6 +37,6 @@
         "keyPersonalEvidenceID": null,
         "keyPhysicalEvidenceID": null,
         "keyPersonID": null,
-        "previewResourceName": ""
+        "previewResourceName": "big_hamu"
     }
 ]

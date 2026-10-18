@@ -6,12 +6,17 @@
             {
                 "personID": 0,
                 "resourceName": "story_01",
-                "statement": "物語が始まる。"
+                "statement": "舞台は19XX年ヨーロッパ、黒薔薇館で起こった事件。"
             },
             {
-                "personID": 1,
+                "personID": 0,
                 "resourceName": "story_02",
-                "statement": "登場人物が話し始める。"
+                "statement": "館の主、ラヴクラフト卿が寝室で遺体となって発見された。"
+            },
+            {
+                "personID": 0,
+                "resourceName": "story_03",
+                "statement": "部屋から証拠を探し、相方と協力して真相を究明せよ！！"
             }
         ]
     },
@@ -23,8 +28,8 @@
         "turn": [
             {
                 "personID": 0,
-                "resourceName": "story_03",
-                "statement": "調査を開始する。現場となった卿の私室。"
+                "resourceName": "story_04",
+                "statement": "調査を開始しよう。まずは現場となった卿の寝室だ。"
             }
         ]
     },
@@ -36,8 +41,8 @@
         "turn": [
             {
                 "personID": 0,
-                "resourceName": "story_04",
-                "statement": "調査が進展する。館の資料室。"
+                "resourceName": "story_05",
+                "statement": "調査が進展する。館の資料室に何かがありそうだ。"
             }
         ]
     },
@@ -49,8 +54,8 @@
         "turn": [
             {
                 "personID": 0,
-                "resourceName": "story_05",
-                "statement": "さらに調査が進展する。卿の書斎。"
+                "resourceName": "story_06",
+                "statement": "さらに調査は進む。卿の書斎にも手がかりが‥‥！？。"
             }
         ]
     },
@@ -60,18 +65,18 @@
         "turn": [
             {
                 "personID": 1,
-                "resourceName": "story_06a",
-                "statement": "容疑者Aが指名され、自分ではないと抗弁する。"
+                "resourceName": "story_07a",
+                "statement": "私がやったという証拠でもあるの！？"
             },
             {
                 "personID": 2,
-                "resourceName": "story_06b",
-                "statement": "容疑者Bが指名され、自分ではないと抗弁する。"
+                "resourceName": "story_07b",
+                "statement": "人を疑うからには、確かな根拠があるのだろうね？"
             },
             {
                 "personID": 3,
-                "resourceName": "story_06c",
-                "statement": "容疑者Cが指名され、自分ではないと抗弁する。"
+                "resourceName": "story_07c",
+                "statement": "私がやったという証拠でもあるのですか？"
             }
         ]
     },
@@ -82,17 +87,12 @@
             {
                 "personID": 0,
                 "resourceName": "story_result_01",
-                "statement": "シナリオクリア！表示"
+                "statement": ""
             },
             {
                 "personID": 0,
                 "resourceName": "story_result_02",
-                "statement": "シナリオのネタバレを提示_1"
-            },
-            {
-                "personID": 0,
-                "resourceName": "story_result_03",
-                "statement": "シナリオのネタバレを提示_2"
+                "statement": "犯人は、秘書のグレイだった。グレイは、屋敷の経費を管理する立場を利用し、帳簿や支出を不正に扱っていた。しかし、卿は帳簿と実際の金額が一致しないことに気づき、調査を進めていた。不正が明らかになれば、グレイは地位を失うだけでなく、警察に告発される可能性もあった。追い詰められたグレイは、卿を殺害することを決意する。屋敷の物品購入や業者との連絡を担当していたグレイは、毒物を入手できる立場にあった。そして事件当日の夜、卿が飲む紅茶に毒を混入させた。遅効性の毒であったため、卿は紅茶を飲んだ書斎ではなく、寝室で息絶えたようだ。"
             }
         ]
     }

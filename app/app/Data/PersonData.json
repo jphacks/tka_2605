@@ -13,7 +13,7 @@
     {
     "id": 1,
     "name": "エレノア",
-    "resourceName": "",
+    "resourceName": "eleanor",
     "personalEvidenceTestimony": {
         "0":"紅茶に毒が……？ そんなことが、本当に起こるなんて。",
         "1":"ずいぶん荒々しい傷ですね。何があったのでしょう。",
@@ -34,7 +34,7 @@
     {
     "id": 2,
     "name": "グレイ",
-    "resourceName": "",
+    "resourceName": "gray",
     "personalEvidenceTestimony": {
         "0":"毒が混入されていたのですか……。慎重に調べる必要がありますね。",
         "1":"家具の傷だけでは、何が起きたのかまでは分かりませんね。",
@@ -55,7 +55,7 @@
     {
     "id": 3,
     "name": "ジェームズ",
-    "resourceName": "",
+    "resourceName": "james",
     "personalEvidenceTestimony": {
         "0":"紅茶が原因だったとは……。まさか、そんなことになるとは思いませんでした。",
         "1":"誰かが強く物をぶつけたのでしょうか……。気になりますね。",
