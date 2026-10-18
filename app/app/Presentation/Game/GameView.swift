@@ -18,6 +18,23 @@ struct GameView: View {
                     // Keep this bridge in the same position for every screen mode.
                     EvidenceARView(runtime: viewModel.arRuntime)
 
+                    if viewModel.isShowingARIntroduction {
+                        ARIntroductionView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                            .task {
+                                do {
+                                    try await Task.sleep(for: .seconds(5))
+                                } catch {
+                                    return
+                                }
+                                withAnimation(.easeOut(duration: 0.4)) {
+                                    viewModel.dismissARIntroduction()
+                                }
+                            }
+                    }
+
                     collectionCounts
                         .padding(12)
 
@@ -52,9 +69,13 @@ struct GameView: View {
         ) {
             EvidenceCollectionView(viewModel: viewModel)
         }
-        .fullScreenCover(item: $viewModel.phasePresentation) { _ in
+        .fullScreenCover(
+            item: $viewModel.phasePresentation,
+            onDismiss: viewModel.phaseScreenDidDismiss
+        ) { _ in
             GamePhaseView(viewModel: viewModel)
                 .interactiveDismissDisabled()
+                .onAppear { viewModel.phaseScreenDidAppear() }
         }
         .onChange(of: viewModel.synchronization) { _, _ in
             viewModel.synchronize()

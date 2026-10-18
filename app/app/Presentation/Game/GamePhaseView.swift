@@ -14,7 +14,7 @@ struct GamePhaseView: View {
                 case .cleared:
                     cleared
                 case .investigation, .none:
-                    ProgressView("ゲーム画面へ移動しています")
+                    ProgressView("ゲーム画面へ移動している")
                         .frame(maxWidth: .infinity)
                 }
             }
@@ -59,7 +59,7 @@ struct GamePhaseView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(viewModel.myRoleDescription)
                     .font(.headline)
-                Text("周囲をゆっくり映して、証拠の札が配置されるのを待ちましょう。札に近づいて撮影すると、証拠を集められます。")
+                Text("周囲をゆっくり映して、証拠の札が配置されるのを待て。札に近づいて撮影すると、証拠を集めることができる。")
                     .foregroundStyle(.secondary)
             }
             .padding(20)
@@ -74,7 +74,7 @@ struct GamePhaseView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             } else {
-                waiting("ホストが調査を開始するのを待っています。")
+                waiting("ホストが調査を開始するのを待機中。")
             }
 
             errorMessage
@@ -86,11 +86,11 @@ struct GamePhaseView: View {
             Text("推理をまとめる")
                 .font(.largeTitle.bold())
                 .padding(.top, 20)
-            Text("2人共通の人物を決め、それぞれが集めた証拠を1つずつ提示してください。")
+            Text("2人共通の人物を決め、それぞれが集めた証拠を1つずつ提示しろ。")
                 .foregroundStyle(.secondary)
 
             if viewModel.hasPreviousIncorrectAttempt {
-                Label("前の提示では解決できませんでした。人物と証拠を選び直してください。", systemImage: "arrow.counterclockwise")
+                Label("提示する証拠が違うようだ。犯人に決定的な証拠を突きつけろ。", systemImage: "arrow.counterclockwise")
                     .font(.subheadline)
                     .foregroundStyle(.orange)
                     .padding(16)
@@ -130,14 +130,14 @@ struct GamePhaseView: View {
                 }
 
                 Button(action: viewModel.confirmPerson) {
-                    Text(viewModel.isConfirmingPerson ? "人物を確定しています…" : "この人物に確定")
+                    Text(viewModel.isConfirmingPerson ? "人物を確定中…" : "この人物に確定")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(!viewModel.canConfirmPerson)
             } else {
-                waiting("ホストが提示先の人物を決めています。")
+                waiting("ホストが提示先の人物を決めている。")
             }
         }
     }
@@ -154,9 +154,9 @@ struct GamePhaseView: View {
                         .font(.headline)
                 }
                 if viewModel.mySubmittedEvidenceID == nil {
-                    waiting("証拠を確定しています。")
+                    waiting("証拠を確定中。")
                 } else {
-                    waiting("相手の証拠を待っています（\(viewModel.submittedCount) / 2人）。")
+                    waiting("相手の証拠を待機中（\(viewModel.submittedCount) / 2人）。")
                 }
             } else {
                 ForEach(viewModel.myEvidences) { evidence in
@@ -218,7 +218,7 @@ struct GamePhaseView: View {
                 .font(.largeTitle.bold())
             Text(viewModel.episodeName)
                 .font(.title2)
-            Text("2人が集めた証拠と推理で、事件の真相にたどり着きました。")
+            Text("おめでとう。二人で協力し、見事に事件を解決した。")
                 .foregroundStyle(.secondary)
 
             Button(action: viewModel.returnToTitle) {

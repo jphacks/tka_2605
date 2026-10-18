@@ -15,6 +15,7 @@ final class EvidenceARRuntime: NSObject {
     private(set) var selectedEvidenceName: String?
     private(set) var statusMessage = "周囲をゆっくり映してください"
     private(set) var placedCount = 0
+    private(set) var hasCameraFeed = false
 
     @ObservationIgnored let arView: ARView
     @ObservationIgnored private let sceneAnchor = AnchorEntity(world: .zero)
@@ -57,6 +58,7 @@ final class EvidenceARRuntime: NSObject {
 
     func configure(gameID: UUID, evidences: [Evidence], kind: EvidenceKind) {
         if self.gameID != gameID || evidenceKind != kind {
+            hasCameraFeed = false
             generation = UUID()
             invalidateCapture()
             for entity in evidenceEntities.values { entity.removeFromParent() }
@@ -145,6 +147,7 @@ final class EvidenceARRuntime: NSObject {
 
     fileprivate func detach() {
         attached = false
+        hasCameraFeed = false
         invalidateCapture()
         clearSelection()
         modifyInput { $0.trackingNormal = false }
@@ -210,9 +213,12 @@ final class EvidenceARRuntime: NSObject {
     private func updateCameraInput() {
         guard attached else { return }
         guard sessionRunning, let frame = arView.session.currentFrame else {
+            hasCameraFeed = false
             modifyInput { $0.trackingNormal = false }
             return
         }
+        hasCameraFeed = !sessionInterrupted
+            && ProcessInfo.processInfo.systemUptime - frame.timestamp < 0.5
         let orientation = arView.window?.windowScene?.effectiveGeometry.interfaceOrientation ?? .portrait
         let viewRotationAngle: CGFloat
         switch orientation {
@@ -410,6 +416,7 @@ extension EvidenceARRuntime: @preconcurrency ARSessionDelegate {
 
     func sessionWasInterrupted(_ session: ARSession) {
         sessionInterrupted = true
+        hasCameraFeed = false
         invalidateCapture()
         clearSelection()
         modifyInput { $0.trackingNormal = false }
@@ -423,6 +430,7 @@ extension EvidenceARRuntime: @preconcurrency ARSessionDelegate {
     }
 
     func session(_ session: ARSession, didFailWithError error: Error) {
+        hasCameraFeed = false
         invalidateCapture()
         clearSelection()
         modifyInput { $0.trackingNormal = false }

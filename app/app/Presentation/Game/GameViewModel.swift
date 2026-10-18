@@ -14,6 +14,7 @@ struct GameViewSynchronization: Equatable {
     let revision: Int
     let phase: GamePhase?
     let isReady: Bool
+    let hasCameraFeed: Bool
     let error: String?
 }
 
@@ -30,8 +31,11 @@ final class GameViewModel {
     var selectedPersonID: Int?
     var selectedEvidenceID: Int?
     private(set) var isConfirmingPerson = false
+    private(set) var isShowingARIntroduction = false
 
     private var currentGameID: UUID?
+    private var hasShownARIntroduction = false
+    private var isPhaseScreenVisible = false
     private var currentAttempt: Int?
     private var previousPhase: GamePhase?
     private var evidenceSheetIsActive = false
@@ -53,6 +57,7 @@ final class GameViewModel {
             revision: game.state?.revision ?? -1,
             phase: game.phase,
             isReady: game.isReady,
+            hasCameraFeed: arRuntime.hasCameraFeed,
             error: game.lastError
         )
     }
@@ -125,6 +130,8 @@ final class GameViewModel {
     /// Reconcile shared progress without rebuilding the local AR session.
     func synchronize() {
         if currentGameID != game.state?.data.id {
+            hasShownARIntroduction = false
+            dismissARIntroduction()
             endPhotography()
             selectedPersonID = nil
             selectedEvidenceID = nil
@@ -157,6 +164,7 @@ final class GameViewModel {
         }
 
         if phase != .investigation || !isReady {
+            dismissARIntroduction()
             endPhotography()
         }
 
@@ -173,6 +181,29 @@ final class GameViewModel {
         }
 
         updateARInteraction()
+        showARIntroductionIfNeeded()
+    }
+
+    func phaseScreenDidAppear() {
+        isPhaseScreenVisible = true
+    }
+
+    func phaseScreenDidDismiss() {
+        isPhaseScreenVisible = false
+        showARIntroductionIfNeeded()
+    }
+
+    func dismissARIntroduction() {
+        isShowingARIntroduction = false
+    }
+
+    private func showARIntroductionIfNeeded() {
+        guard phase == .investigation, isReady, arRuntime.hasCameraFeed,
+              !isPhaseScreenVisible, phasePresentation == nil,
+              !hasShownARIntroduction,
+              arMode == .exploring, !isShowingEvidence, !evidenceSheetIsActive else { return }
+        hasShownARIntroduction = true
+        isShowingARIntroduction = true
     }
 
     func beginInvestigation() {
@@ -182,6 +213,7 @@ final class GameViewModel {
 
     func beginPhotography() {
         guard isReady, phase == .investigation, !isShowingEvidence else { return }
+        dismissARIntroduction()
         arMode = .photographing
         activeCaptureID = nil
         updateARInteraction()
@@ -214,6 +246,7 @@ final class GameViewModel {
 
     func showEvidence() {
         guard isReady, phase == .investigation, arMode == .exploring else { return }
+        dismissARIntroduction()
         evidenceSheetIsActive = true
         isShowingEvidence = true
         updateARInteraction()
@@ -243,6 +276,7 @@ final class GameViewModel {
     }
 
     func stopInteraction() {
+        dismissARIntroduction()
         endPhotography()
         arRuntime.setInteractionEnabled(false)
     }
